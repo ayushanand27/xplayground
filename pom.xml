@@ -16,6 +16,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <junit.jupiter.version>5.10.2</junit.jupiter.version>
     <selenium.version>4.18.1</selenium.version>
+    <webdrivermanager.version>5.7.0</webdrivermanager.version>
   </properties>
 
   <dependencies>
@@ -33,17 +34,32 @@
       <scope>test</scope>
     </dependency>
 
-    <!-- Selenium for basic setup; kept in test scope so it doesn't bloat the runtime image. -->
+    <!-- Selenium for UI automation -->
     <dependency>
       <groupId>org.seleniumhq.selenium</groupId>
       <artifactId>selenium-java</artifactId>
       <version>${selenium.version}</version>
-      <scope>test</scope>
+    </dependency>
+
+    <!-- WebDriverManager to automatically manage browser drivers (ChromeDriver, etc.) -->
+    <dependency>
+      <groupId>io.github.bonigarcia</groupId>
+      <artifactId>webdrivermanager</artifactId>
+      <version>${webdrivermanager.version}</version>
     </dependency>
   </dependencies>
 
   <build>
     <plugins>
+      <!-- Explicitly compile with Java 17 -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.11.0</version>
+        <configuration>
+          <release>17</release>
+        </configuration>
+      </plugin>
       <!-- JUnit 5 provider -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
