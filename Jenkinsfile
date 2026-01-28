@@ -43,7 +43,7 @@ pipeline {
             }
             post {
                 success {
-                    archiveArtifacts artifacts: 'target/*-shaded.jar', fingerprint: true
+                   archiveArtifacts artifacts: 'target/*.jar' , fingerprint: true
                 }
             }
         }
