@@ -1,104 +1,151 @@
-# DevOps Pipeline App (Java 17 + Maven)
+# DevOps Pipeline App (Java 17 + Maven + Jenkins + Selenium + Docker)
 
-A **real-life DevOps automation project** that demonstrates a complete CI/CD pipeline with automated builds, unit tests, Selenium UI validation, and Docker containerization.
+A real-life DevOps automation project that demonstrates a complete CI/CD pipeline:
+**build → test → package → run service → UI validation → (optional) containerization**.
+
+---
+
+## Overview
+
+This project implements a **mini web service** running on **http://localhost:8800** and a **Jenkins CI pipeline** that automatically validates the application whenever code is pushed.
+
+The focus of this project is **DevOps automation**, not application complexity.
+
+---
 
 ## What This Project Does
 
-This is a **mini web service** running on `http://localhost:8800` with a Jenkins CI pipeline that automatically:
-- ✅ Builds the application with Maven
-- ✅ Runs unit tests (JUnit)
-- ✅ Packages into executable JAR
-- ✅ Starts the application
-- ✅ Runs Selenium UI test to validate the deployed app
-- ✅ (Optional) Builds Docker image
-- ✅ Publishes test reports
+The Jenkins pipeline automatically performs the following steps:
 
-## Why This is a Real DevOps Project
+✅ Builds the application using Maven  
+✅ Runs unit tests using JUnit 5  
+✅ Packages the application into an executable JAR  
+✅ Starts the application on port **8800**  
+✅ Runs Selenium UI smoke test (headless Chrome)  
+✅ Publishes test reports in Jenkins  
+✅ (Optional) Builds Docker image for consistent deployment  
 
-In companies, the real problems are:
-1. Developers push code often
-2. Builds/tests must run **automatically**
-3. UI must be verified **automatically** (Selenium)
-4. Same build should work on any machine (Docker)
-5. Jenkins should show PASS/FAIL + reports
+> Jenkins UI runs on **http://localhost:8080**  
+> Application runs on **http://localhost:8800**
 
-**This project is a DevOps automation system for a web service.**
+---
 
-## Tech Stack
-- **Java 17** - Application runtime
-- **Maven** - Build automation
-- **SparkJava** - Lightweight web framework
-- **JUnit 5** - Unit testing
-- **Selenium WebDriver** - Automated UI testing
-- **Jenkins** - CI/CD pipeline automation
-- **Docker** - Containerization
-- **Puppet** - Configuration management
-- **Nagios-style script** - Health monitoring
+## Why This Is a Real DevOps Project
+
+In real software teams:
+
+- Developers push code frequently  
+- Builds and tests must run automatically  
+- UI validation should not be manual  
+- Applications must behave the same in all environments  
+- CI tools must give clear PASS/FAIL visibility  
+
+This project solves those problems by implementing an **end-to-end automated CI pipeline** using industry-standard DevOps tools.
+
+---
+
+## Technology Stack
+
+| Tool | Purpose |
+|----|----|
+| Java 17 | Application runtime |
+| Maven | Build automation |
+| SparkJava | Lightweight HTTP server |
+| JUnit 5 | Unit testing |
+| Selenium WebDriver | Automated UI testing |
+| Jenkins | CI/CD automation |
+| Docker | Containerization (optional) |
+| Puppet | Configuration management (Linux demo) |
+| Nagios-style Script | Monitoring simulation |
+
+---
+
+## Application Endpoints
+
+| Endpoint | Description |
+|-------|------------|
+| `/` | Main web page |
+| `/health` | Health check (returns OK) |
+
+---
 
 ## Project Structure
+
 ```
 src/
-  main/java/com/example/devops/App.java         # Web service (port 8800)
-  test/java/com/example/devops/AppTest.java     # Unit tests
-  test/java/com/example/devops/SeleniumSmokeTest.java  # UI automation test
-Jenkinsfile                                      # CI/CD pipeline definition
-Dockerfile                                       # Container configuration
-manifests/install_java_maven.pp                 # Puppet automation
-scripts/check_jenkins_build.sh                  # Nagios health check
-pom.xml                                          # Maven dependencies
+├─ main/
+│  └─ java/com/example/devops/App.java
+└─ test/
+   ├─ java/com/example/devops/AppTest.java
+   └─ java/com/example/devops/SeleniumSmokeTest.java
+
+Jenkinsfile
+Dockerfile
+pom.xml
+manifests/install_java_maven.pp
+scripts/check_jenkins_build.sh
+README.md
 ```
 
-## Quick Start - Run Locally
+---
 
-### 1. Build the project
+## Running the Project Locally
+
+### 1️⃣ Build the project
 ```bash
 mvn clean package
 ```
 
-### 2. Run the application
+### 2️⃣ Run the application
 ```bash
 java -jar target/devops-pipeline-app-1.0.0.jar
 ```
 
-### 3. Test the endpoints
-Open your browser:
-- Main page: `http://localhost:8800`
-- Health check: `http://localhost:8800/health`
+### 3️⃣ Access the application
+- **Main page:** http://localhost:8800
+- **Health check:** http://localhost:8800/health
 
-### 4. Run unit tests
+### 4️⃣ Run unit tests
 ```bash
 mvn test
 ```
 
-### 5. Run Selenium UI test (optional)
+### 5️⃣ Run Selenium UI test (optional)
+Make sure the app is running first:
 ```bash
 mvn test -Dselenium.enabled=true
 ```
 
-## Jenkins Pipeline (The DevOps Core)
+---
 
-The `Jenkinsfile` defines an automated pipeline with these stages:
+## Jenkins Pipeline (CI/CD Core)
+
+The pipeline is defined using **Pipeline as Code** in the `Jenkinsfile`.
 
 ### Pipeline Stages
-1. **Checkout** - Get code from Git/GitHub
-2. **Build** - Compile Java code with Maven
-3. **Unit Tests** - Run JUnit tests
-4. **Package** - Create executable JAR
-5. **Start Application** - Launch app on port 8800
-6. **Selenium UI Test** - Validate UI automatically
-7. **Docker Build** - (Optional) Create container image
+1. **Checkout** – Fetch source code from GitHub
+2. **Build** – Compile using Maven
+3. **Unit Tests** – Run JUnit tests
+4. **Package** – Create executable JAR
+5. **Start Application** – Launch app on port 8800
+6. **Selenium UI Test** – Validate UI automatically
+7. **Publish Reports** – Show test results in Jenkins
+8. **Cleanup** – Stop application and free resources
 
-### Jenkins Requirements
-- Windows agent with:
-  - JDK 17 (configured as `JDK17` in Global Tool Configuration)
-  - Maven 3 (configured as `Maven3` in Global Tool Configuration)
-  - Docker (optional, for containerization)
+### Jenkins Requirements (Windows)
+- Jenkins running on Windows (http://localhost:8080)
+- JDK 17 configured in Global Tool Configuration (`JDK17`)
+- Maven configured in Global Tool Configuration (`Maven3`)
+- Google Chrome installed (for Selenium headless mode)
+- Docker installed only if container stage is used
 
-### What Jenkins Shows You
-- ✅ **Green Build** = All tests passed, UI validated
-- ❌ **Red Build** = Something failed (build, test, or UI validation)
-- 📊 **Test Reports** - JUnit results published automatically
-- 📝 **Console Log** - See "Selenium validated app" message
+### Jenkins Build Results
+- 🟢 **Green Build** → Application built, tested, and validated
+- 🔴 **Red Build** → Build/test/UI validation failed
+- 📊 **Test Reports** → JUnit reports published automatically
+- 📝 **Console Logs** → Detailed pipeline execution logs
+
+---
 
 ## Docker (Optional)
 
@@ -107,73 +154,102 @@ The `Jenkinsfile` defines an automated pipeline with these stages:
 docker build -t devops-pipeline-app:latest .
 ```
 
-### Run in container
+### Run Docker container
 ```bash
-docker run -p 8800:8800 --rm devops-pipeline-app:latest
+docker run --rm -p 8800:8800 devops-pipeline-app:latest
 ```
 
-Then visit `http://localhost:8800`
+Then access:
+- http://localhost:8800
 
-## Final Demo Script (For Faculty/Presentation)
+---
 
-**"Here is my GitHub repo and Jenkinsfile (pipeline as code)."**
+## Puppet (Optional Demonstration)
 
-**"When I push a commit, Jenkins triggers automatically."**
+The Puppet manifest:
+```
+manifests/install_java_maven.pp
+```
+automates installation of:
+- Java 17
+- Maven
 
-**"Jenkins compiles using Maven and runs unit tests."**
+This demonstrates **Infrastructure as Code** for Linux-based Jenkins agents.
 
-**"Then it starts the app on port 8800."**
+---
 
-**"Then Selenium runs headless Chrome and checks the UI page."**
+## Monitoring Simulation
 
-**"Jenkins publishes test reports. Green build means safe to deploy."**
+A Nagios-style script:
+```
+scripts/check_jenkins_build.sh
+```
+simulates monitoring Jenkins availability.
 
-**(Optional) "It also builds a Docker image for consistent deployment anywhere."**
+**Exit codes:**
+- `0` → OK
+- `2` → CRITICAL
 
-## Configuration Files
-
-### Puppet (Infrastructure as Code)
-A basic manifest at `manifests/install_java_maven.pp` automates Java 17 and Maven installation on Linux agents.
-
-### Nagios-style Health Check
-Script at `scripts/check_jenkins_build.sh` simulates checking Jenkins availability:
+**Usage:**
 ```bash
 ./scripts/check_jenkins_build.sh https://your-jenkins.example.com
 ```
 
-Exit codes: `0` = OK, `2` = CRITICAL
+---
 
 ## Git Workflow
-Initialize and commit:
+
 ```bash
 git init
 git add .
-git commit -m "feat: real-life DevOps pipeline with automated testing"
-git remote add origin <your-github-repo>
+git commit -m "feat: real-life DevOps CI pipeline with automated testing"
+git remote add origin <your-repository-url>
 git push -u origin main
 ```
 
+---
+
 ## Troubleshooting
 
-### App won't start
-- Check if port 8800 is already in use: `netstat -an | find "8800"`
-- Kill process: `taskkill /F /PID <pid>`
+### Application not starting
+Check port usage:
+```bash
+netstat -ano | findstr :8800
+```
 
-### Selenium test fails
-- Make sure the app is running on port 8800
-- Check Chrome is installed
+Kill process:
+```bash
+taskkill /F /PID <pid>
+```
+
+### Selenium test failure
+- Ensure app is running on port 8800
+- Ensure Chrome is installed
 - Run with `-Dselenium.enabled=true`
 
-### Jenkins build fails
-- Verify JDK17 and Maven3 are configured in Jenkins Global Tools
-- Check Windows agent has network access to Maven Central
-- Review console output for specific errors
+### Jenkins failure
+- Verify `JDK17` and `Maven3` in Jenkins tools
+- Review Jenkins console output
 
-## Next Steps to Enhance
+---
 
-1. **Add database** (PostgreSQL, H2) with migrations
-2. **Add REST API** endpoints with CRUD operations
-3. **Add metrics** (Prometheus, Grafana)
+## Future Enhancements
+
+1. Add database integration (H2 / PostgreSQL)
+2. Add REST CRUD APIs
+3. Add metrics and monitoring
+4. Add authentication and HTTPS
+5. Add code quality gates (SonarQube)
+6. Deploy to cloud / Kubernetes
+
+---
+
+## Final Statement
+
+**This project demonstrates a complete DevOps lifecycle:**  
+from code commit to automated build, testing, UI validation, and deployment readiness.
+
+It is suitable for academic evaluation and reflects real-world DevOps practices.
 4. **Add security** (authentication, HTTPS)
 5. **Deploy to cloud** (AWS, Azure, Kubernetes)
 6. **Add performance tests** (JMeter, Gatling)
