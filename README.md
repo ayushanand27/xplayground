@@ -1,16 +1,32 @@
-# DevOps Pipeline App (Java 17 + Maven + Jenkins + Selenium + Docker)
+# DevOps Pipeline App - Write Code, Commit, See Pipeline Execute
 
-A real-life DevOps automation project that demonstrates a complete CI/CD pipeline:
+A **real-life DevOps automation project** with an interactive code editor GUI where you can:
+- ✍️ Write code (C++, Java, Python, etc.) directly in the browser
+- 🔄 Commit and push to GitHub with one click
+- 🚀 Automatically trigger Jenkins pipeline
+- 👀 Watch real-time pipeline execution
 
-**build → test → package → run service → UI validation → (optional) containerization**
+**Complete CI/CD flow:** **code editor → GitHub commit → Jenkins trigger → build → test → package → deploy → UI validation**
 
 ---
 
 ## Overview
 
-This project implements a **mini web service** running on **http://localhost:8800** and a **Jenkins CI pipeline** that automatically validates the application whenever code is pushed.
+This project implements a **complete DevOps workflow** with:
 
-The primary goal of this project is to demonstrate **DevOps practices and automation**, not application complexity.
+1. **Interactive Web Dashboard** running on **http://localhost:8800** with:
+   - Code editor (supports C++, Java, Python, any language)
+   - Real-time pipeline visualization
+   - Live console logs
+   - Build status tracking
+
+2. **Jenkins CI/CD Pipeline** running on **http://localhost:8080** that:
+   - Automatically builds when code is committed
+   - Runs unit tests and UI tests
+   - Packages and deploys the application
+   - Provides visual feedback
+
+The primary goal is to demonstrate **real DevOps practices** with an interactive GUI for live demonstration.
 
 ---
 
@@ -61,12 +77,22 @@ This project solves these problems by implementing an **end-to-end automated CI 
 
 ---
 
-## Application Endpoints
+## Application Endpoints & Ports
 
-| Endpoint | Description |
-|-------|------------|
-| `/` | Main web page |
-| `/health` | Health check (returns OK) |
+### Ports Configuration
+
+| Service | Port | URL | Description |
+|---------|------|-----|-------------|
+| **DevOps Dashboard** | **8800** | http://localhost:8800 | Interactive code editor + pipeline status |
+| **Jenkins CI/CD** | **8080** | http://localhost:8080 | Jenkins automation server |
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Main dashboard with code editor |
+| `/health` | GET | Health check (returns OK) |
+| `/api/commit` | POST | Submit code commit (triggers pipeline) |
 
 ---
 
@@ -89,54 +115,124 @@ README.md
 
 ---
 
-## Running the Project Locally
+## 🚀 Running the Project Locally
 
-### 1️⃣ Build the project
+### Prerequisites
+- ✅ **Java 17** or higher installed
+- ✅ **Maven 3.x** installed
+- ✅ **Google Chrome** installed (for Selenium tests)
+- ✅ **Jenkins** running on http://localhost:8080 (optional, for CI/CD)
+
+### Step-by-Step Execution
+
+#### 1️⃣ Build the project
 ```bash
-mvn clean package
-2️⃣ Run the application
+cd c:\Users\ayush\xplayground
+mvn clean package -DskipTests
+```
+**Expected Output:** `BUILD SUCCESS` with JAR created at `target/devops-pipeline-app-1.0.0.jar`
+
+#### 2️⃣ Start the application
+```bash
 java -jar target/devops-pipeline-app-1.0.0.jar
-3️⃣ Access the application
-Main page: http://localhost:8800
+```
+**Expected Output:**
+```
+Server started: http://localhost:8800
+DevOps Pipeline Working
+```
 
-Health check: http://localhost:8800/health
+#### 3️⃣ Access the Interactive Dashboard
+Open your browser and navigate to:
 
-4️⃣ Run unit tests
+🌐 **http://localhost:8800**
+
+You will see:
+- **Left Panel:** Code editor (write C++, Java, Python, etc.)
+- **Right Panel:** Real-time pipeline status visualization
+- **Bottom:** Application stats (tests, Docker, Jenkins)
+
+#### 4️⃣ Try the Code Editor
+1. **Write code** in the textarea (default: C++ HelloWorld)
+2. **Edit filename** (e.g., `main.cpp`, `App.java`, `script.py`)
+3. **Add commit message** (e.g., "Added new feature")
+4. **Click "Commit & Push to GitHub"**
+5. **Watch the pipeline animate** through 6 stages:
+   - Checkout → Build → Test → Package → Selenium → Reports
+6. **See console logs** in real-time
+
+#### 5️⃣ Run unit tests manually
+```bash
 mvn test
-5️⃣ Run Selenium UI test (optional)
-Make sure the application is running first:
+```
+**Expected:** 2 unit tests pass (AppTest)
 
+#### 6️⃣ Run Selenium UI test (optional)
+Make sure the application is running on port 8800 first:
+```bash
 mvn test -Dselenium.enabled=true
-Jenkins Pipeline (CI/CD Core)
-The pipeline is defined using Pipeline as Code in the Jenkinsfile.
+```
+**Expected:** Browser opens headless, validates http://localhost:8800, test passes
 
-Pipeline Stages
-Checkout – Fetch source code from GitHub
+#### 7️⃣ Check application health
+```bash
+curl http://localhost:8800/health
+```
+**Expected:** `OK`
 
-Build – Compile Java code using Maven
+#### 8️⃣ Stop the application
+Press `Ctrl + C` in the terminal where the app is running
 
-Unit Tests – Run JUnit tests
+Or kill the process:
+```bash
+# Windows
+taskkill /F /IM java.exe
 
-Package – Create executable JAR
+# Linux/Mac
+pkill java
+```
+---
 
-Start Application – Launch app on port 8800
+## 🔧 Jenkins Pipeline (CI/CD Core)
 
-Selenium UI Test – Validate UI automatically
+**Jenkins URL:** http://localhost:8080
 
-Publish Reports – Display test results in Jenkins
+The pipeline is defined using **Pipeline as Code** in the `Jenkinsfile`.
 
-Cleanup – Stop application and free resources
+### Pipeline Stages (Automated)
 
-Jenkins Requirements (Windows)
-Jenkins running on Windows (http://localhost:8080)
+| Stage | Description | Port |
+|-------|-------------|------|
+| 1️⃣ **Checkout** | Fetch source code from GitHub/SCM | - |
+| 2️⃣ **Build** | Compile Java code using Maven | - |
+| 3️⃣ **Unit Tests** | Run JUnit tests | - |
+| 4️⃣ **Package** | Create executable JAR | - |
+| 5️⃣ **Start Application** | Launch app on port **8800** | 8800 |
+| 6️⃣ **Selenium UI Test** | Validate UI at http://localhost:8800 | 8800 |
+| 7️⃣ **Publish Reports** | Display test results in Jenkins | - |
+| 8️⃣ **Cleanup** | Stop application and free port 8800 | - |
 
-JDK 17 configured in Jenkins Global Tool Configuration (JDK17)
+### Jenkins Setup Requirements (Windows)
 
-Maven configured in Jenkins Global Tool Configuration (Maven3)
+1. **Jenkins** running on http://localhost:8080
+2. **JDK 17** configured in Jenkins Global Tool Configuration as `JDK17`
+3. **Maven 3.x** configured in Jenkins Global Tool Configuration as `Maven3`
+4. **Google Chrome** installed (for Selenium headless execution)
+5. **Port 8800** available (pipeline will kill existing processes)
+6. **Docker** installed only if Docker build stage is enabled
 
-Google Chrome installed (for Selenium headless execution)
+### Triggering the Pipeline
 
-Docker installed only if container stage is used
+**Manually in Jenkins:**
+1. Open http://localhost:8080
+2. Select your pipeline job
+3. Click "Build Now"
+
+**Automatically via Code Editor:**
+1. Open http://localhost:8800
+2. Write code in the editor
+3. Click "Commit & Push to GitHub"
+4. Jenkins webhook triggers build automatically
 
 Jenkins Build Results
 🟢 Green Build → Build, tests, and UI validation passed
@@ -186,25 +282,70 @@ git add .
 git commit -m "feat: real-life DevOps CI pipeline with automated testing"
 git remote add origin <your-repository-url>
 git push -u origin main
-Troubleshooting
-Application not starting
-Check port usage:
+---
 
+## 🛠️ Troubleshooting
+
+### ❌ Application not starting
+
+**Problem:** Port 8800 already in use
+
+**Solution (Windows):**
+```bash
+# Check what's using port 8800
 netstat -ano | findstr :8800
-Kill the process:
 
+# Kill the process by PID
 taskkill /F /PID <pid>
-Selenium test failure
-Ensure the app is running on port 8800
 
-Ensure Google Chrome is installed
+# Or kill all Java processes
+taskkill /F /IM java.exe
+```
 
-Run with -Dselenium.enabled=true
+**Solution (Linux/Mac):**
+```bash
+# Check what's using port 8800
+lsof -i :8800
 
-Jenkins failure
-Verify JDK17 and Maven3 are configured in Jenkins
+# Kill the process
+kill -9 <pid>
+```
 
-Review Jenkins console output
+### ❌ Selenium test failure
+
+**Checklist:**
+- ✅ App is running on http://localhost:8800
+- ✅ Google Chrome is installed
+- ✅ Run with: `mvn test -Dselenium.enabled=true`
+- ✅ Check console logs for detailed errors
+
+### ❌ Jenkins build failure
+
+**Checklist:**
+- ✅ Jenkins is running on http://localhost:8080
+- ✅ JDK17 configured in Jenkins → Manage Jenkins → Global Tool Configuration
+- ✅ Maven3 configured in Jenkins → Manage Jenkins → Global Tool Configuration
+- ✅ Review Jenkins console output for specific errors
+- ✅ Port 8800 is available during build
+
+### ❌ Code editor not loading
+
+**Solution:**
+```bash
+# Restart the application
+taskkill /F /IM java.exe
+java -jar target/devops-pipeline-app-1.0.0.jar
+
+# Wait 3 seconds, then access:
+http://localhost:8800
+```
+
+### ❌ "Commit & Push" button not working
+
+**Check:**
+1. Browser console for JavaScript errors (F12 → Console)
+2. Backend logs where Java app is running
+3. Network tab (F12 → Network) to see POST to `/api/commit`
 
 Future Enhancements
 Add database integration (H2 / PostgreSQL)
