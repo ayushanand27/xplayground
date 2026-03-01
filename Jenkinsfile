@@ -60,26 +60,24 @@ pipeline {
                 '''
                 bat '''
                     @echo off
-                    setlocal enabledelayedexpansion
                     echo Waiting 12 seconds for application to initialize...
-                    timeout /t 12 /nobreak
+                    ping -n 13 127.0.0.1 > nul
 
                     set RETRY=0
                     :HEALTHCHECK
-                    echo Checking health endpoint (attempt !RETRY!)...
+                    echo Checking health endpoint (attempt %RETRY%)...
                     curl -s http://localhost:8800/health
                     if errorlevel 1 (
                         set /a RETRY+=1
-                        if !RETRY! LSS 5 (
-                            echo Retry !RETRY!/5 - waiting 5 more seconds...
-                            timeout /t 5 /nobreak
+                        if %RETRY% LSS 5 (
+                            echo Retry %RETRY%/5 - waiting 5 more seconds...
+                            ping -n 6 127.0.0.1 > nul
                             goto HEALTHCHECK
                         )
                         echo ERROR: Application did not start after 5 retries
                         exit /b 1
                     )
                     echo Application is running and healthy!
-                    endlocal
                 '''
             }
         }
@@ -89,7 +87,7 @@ pipeline {
                 bat '''
                     @echo off
                     echo Giving application extra time to stabilize...
-                    timeout /t 5 /nobreak
+                    ping -n 6 127.0.0.1 > nul
 
                     echo Verifying application is still responding...
                     curl -s http://localhost:8800/health

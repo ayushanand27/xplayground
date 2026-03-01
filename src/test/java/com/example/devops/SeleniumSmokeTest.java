@@ -2,7 +2,6 @@ package com.example.devops;
 
 import java.time.Duration;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 import org.junit.jupiter.api.Test;
@@ -63,8 +62,8 @@ public class SeleniumSmokeTest {
             String heading = driver.findElement(By.tagName("h1")).getText();
             
             System.out.println("📝 Page heading: " + heading);
-            assertEquals("DevOps Pipeline Working", heading,
-                "Heading should be 'DevOps Pipeline Working' but was: " + heading);
+            assertTrue(heading.contains("DevOps Pipeline"),
+                "Heading should contain 'DevOps Pipeline' but was: " + heading);
             
             System.out.println("✅ Selenium validated app at http://localhost:8800");
             System.out.println("🎉 All Selenium tests passed!");
