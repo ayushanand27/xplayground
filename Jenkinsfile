@@ -55,13 +55,18 @@ pipeline {
             steps {
                 script {
                     // Start app in background on port 8800
-                    bat 'start /B java -jar target\\devops-pipeline-app-1.0.0.jar > app.log 2>&1'
+                    bat '''
+                        @echo off
+                        echo Starting application in background...
+                        start /B java -jar target\devops-pipeline-app-1.0.0.jar
+                        echo Application started, waiting for initialization...
+                    '''
                     
                     // Wait for app to start and check health endpoint with retries
                     bat '''
                         @echo off
                         echo Waiting for application to start on port 8800...
-                        timeout /t 10 /nobreak >nul
+                        timeout /t 10 /nobreak
                         
                         REM Retry health check up to 5 times
                         set RETRY=0
@@ -71,11 +76,10 @@ pipeline {
                             set /a RETRY+=1
                             if %RETRY% LSS 5 (
                                 echo Retry %RETRY%/5: Waiting for app...
-                                timeout /t 3 /nobreak >nul
+                                timeout /t 3 /nobreak
                                 goto HEALTHCHECK
                             )
                             echo ERROR: Application failed to start after 5 retries
-                            type app.log
                             exit /b 1
                         )
                         echo Application is running and healthy!
@@ -87,14 +91,22 @@ pipeline {
         stage('Selenium UI Test') {
             steps {
                 script {
-                    // Give app extra time to fully initialize
-                    bat 'timeout /t 5 /nobreak'
-                    
-                    // Verify app is still running before Selenium
-                    bat 'curl -f http://localhost:8800/health || exit /b 1'
-                    
                     // Run Selenium test against the deployed app
-                    bat 'mvn -B -ntp test -Dtest=SeleniumSmokeTest -Dselenium.enabled=true || exit /b 0'
+                    bat '''
+                        @echo off
+                        echo Waiting for application to be ready...
+                        timeout /t 5 /nobreak
+                        
+                        echo Verifying app is running...
+                        curl -s http://localhost:8800/health
+                        if errorlevel 1 (
+                            echo ERROR: Application not responding
+                            exit /b 1
+                        )
+                        
+                        echo Running Selenium tests...
+                        mvn -B -ntp test -Dtest=SeleniumSmokeTest -Dselenium.enabled=true
+                    '''
                 }
             }
             post {
@@ -110,26 +122,30 @@ pipeline {
             }
             steps {
                 script {
-                    // Check if Docker is installed and daemon is running
-                    def dockerAvailable = bat(script: 'docker --version 2>nul', returnStatus: true) == 0
-                    
-                    if (dockerAvailable) {
-                        echo 'Docker is available, building image...'
-                        def dockerBuildStatus = bat(script: 'docker build -t devops-pipeline-app:latest .', returnStatus: true)
+                    // Try to build Docker image
+                    bat '''
+                        @echo off
+                        echo Checking for Docker...
+                        docker --version
+                        if errorlevel 1 (
+                            echo [WARNING] Docker not found or not running
+                            echo [INFO] To enable Docker builds:
+                            echo [INFO] 1. Install Docker Desktop: https://www.docker.com/products/docker-desktop
+                            echo [INFO] 2. Start Docker Desktop
+                            echo [INFO] 3. Verify with: docker ps
+                            exit /b 0
+                        )
                         
-                        if (dockerBuildStatus == 0) {
-                            echo '✅ Docker image built successfully!'
-                            bat 'docker images devops-pipeline-app:latest'
-                        } else {
-                            echo '⚠️ Docker build failed. Check if Docker daemon is running.'
-                            echo 'Run: docker ps (to verify Docker is running)'
-                            error('Docker build failed')
-                        }
-                    } else {
-                        echo '⚠️ Docker not found or not running. Skipping Docker build.'
-                        echo 'To enable: Install Docker Desktop and ensure it is running'
-                        unstable('Docker not available - marked as unstable')
-                    }
+                        echo Building Docker image...
+                        docker build -t devops-pipeline-app:latest .
+                        if errorlevel 1 (
+                            echo [ERROR] Docker build failed
+                            exit /b 1
+                        )
+                        
+                        echo [SUCCESS] Docker image built successfully!
+                        docker images devops-pipeline-app:latest
+                    '''
                 }
             }
         }
