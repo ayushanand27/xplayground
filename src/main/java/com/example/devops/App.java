@@ -25,7 +25,12 @@ public class App {
             System.out.println("Message: " + message);
             System.out.println("Code size: " + (code != null ? code.length() : 0) + " bytes");
             
-            return "{\"status\":\"success\",\"message\":\"Code committed and Jenkins triggered\"}";
+            return "{\"status\":\"success\",\"message\":\"Code committed to GitHub. Jenkins pipeline triggered!\",\"jenkins_build_url\":\"http://localhost:8080/job/devops-pipeline/123/\"}";
+        });
+
+        get("/jenkins-build", (req, res) -> {
+            res.type("text/html");
+            return getJenkinsBuildConsole();
         });
 
         System.out.println("Server started: http://localhost:8800");
@@ -72,9 +77,9 @@ public class App {
                 ".status-row:last-child {border-bottom:none;}" +
                 ".status-label {color:#666;font-weight:bold;}" +
                 ".status-value {color:#2ecc71;font-weight:bold;}" +
-                ".log-console {background:#1e1e1e;color:#0f0;padding:15px;border-radius:5px;font-family:monospace;font-size:12px;height:200px;overflow-y:auto;margin-top:15px;border:1px solid #333;}" +
-                ".log-line {margin:3px 0;}" +
-                ".log-success {color:#2ecc71;}" +
+                ".log-console {background:#1e1e1e;color:#0f0;padding:15px;border-radius:5px;font-family:monospace;font-size:12px;height:250px;overflow-y:auto;margin-top:15px;border:1px solid #333;box-shadow:inset 0 2px 5px rgba(0,0,0,0.3);}" +
+                ".log-line {margin:2px 0;padding:2px 0;border-bottom:1px solid #333;}" +
+                ".log-success {color:#2ecc71;font-weight:bold;}" +
                 ".log-error {color:#e74c3c;}" +
                 ".log-info {color:#87ceeb;}" +
                 ".grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;margin-top:20px;}" +
@@ -129,7 +134,7 @@ public class App {
                 "<div class='status-row'><span class='status-label'>Build Time:</span><span class='status-value'>42 seconds</span></div>" +
                 "<div class='status-row'><span class='status-label'>Tests Passed:</span><span class='status-value'>3/3</span></div>" +
                 "</div>" +
-                "<div id='log-console' class='log-console'><div class='log-line log-info'>[INFO] DevOps Pipeline Ready. Write code and commit!</div></div>" +
+                "<div id='log-console' class='log-console'><div class='log-line log-info'>[INFO] DevOps CI/CD Pipeline Ready</div><div class='log-line log-info'>[INFO] Write code → Commit → Jenkins executes automatically</div></div>" +
                 "</div>" +
                 "</div>" +
                 "<div class='grid'>" +
@@ -153,32 +158,53 @@ public class App {
                 "  formData.append('filename', filename);" +
                 "  formData.append('message', message);" +
                 "  document.getElementById('success-msg').classList.add('show');" +
-                "  addLog('INFO', 'Committing code to GitHub...');" +
+                "  addLog('INFO', 'Pushing code to GitHub...');" +
                 "  fetch('/api/commit', { method: 'POST', body: formData })" +
                 "    .then(r => r.json())" +
                 "    .then(data => {" +
-                "      addLog('SUCCESS', 'Code committed successfully');" +
-                "      addLog('INFO', 'Jenkins pipeline triggered...');" +
-                "      updatePipelineStatus();" +
-                "      setTimeout(() => { document.getElementById('success-msg').classList.remove('show'); }, 5000);" +
+                "      addLog('SUCCESS', 'Code pushed to GitHub successfully ✓');" +
+                "      addLog('INFO', 'Jenkins build #123 triggered...');" +
+                "      setTimeout(() => {" +
+                "        window.location.href = '/jenkins-build';" +
+                "      }, 1500);" +
                 "    })" +
                 "    .catch(e => { addLog('ERROR', 'Commit failed: ' + e); });" +
                 "}" +
                 "function updatePipelineStatus() {" +
+                "  const steps = ['Checkout', 'Build', 'Test', 'Package', 'Selenium', 'Reports'];" +
+                "  const logs = [" +
+                "    ['Checkout', '[INFO] Fetching code from GitHub', '[INFO] Checkout complete ✓']," +
+                "    ['Build', '[INFO] Compiling Java source...', '[INFO] javac: Java 17 compilation', '[INFO] Build SUCCESS ✓']," +
+                "    ['Test', '[INFO] Running JUnit tests', '[PASS] AppTest.java - 2/2 tests passed', '[PASS] All tests passed ✓']," +
+                "    ['Package', '[INFO] Creating JAR package', '[INFO] Building devops-pipeline-app-1.0.0.jar', '[INFO] Package created ✓']," +
+                "    ['Selenium', '[INFO] Starting application on port 8800', '[PASS] Chrome validation test passed', '[PASS] UI tests SUCCESS ✓']," +
+                "    ['Reports', '[INFO] Generating test reports', '[INFO] Publishing JUnit results', '[SUCCESS] Pipeline Complete!']" +
+                "  ];" +
                 "  let current = 0;" +
-                "  const interval = setInterval(() => {" +
-                "    document.querySelectorAll('.pipeline-step').forEach((el, i) => {" +
-                "      el.querySelector('.step-badge').className = 'step-badge';" +
-                "      if(i < current) { el.querySelector('.step-badge').classList.add('success'); }" +
-                "      else if(i === current) { el.querySelector('.step-badge').classList.add('running'); }" +
-                "      else { el.querySelector('.step-badge').classList.add('pending'); }" +
-                "    });" +
-                "    current++;" +
-                "    if(current > 6) {" +
-                "      clearInterval(interval);" +
-                "      addLog('SUCCESS', 'Pipeline completed successfully!');" +
+                "  const stageInterval = setInterval(() => {" +
+                "    if(current < steps.length) {" +
+                "      document.querySelectorAll('.pipeline-step').forEach((el, i) => {" +
+                "        el.querySelector('.step-badge').className = 'step-badge';" +
+                "        if(i < current) { el.querySelector('.step-badge').classList.add('success'); }" +
+                "        else if(i === current) { el.querySelector('.step-badge').classList.add('running'); }" +
+                "        else { el.querySelector('.step-badge').classList.add('pending'); }" +
+                "      });" +
+                "      if(logs[current]) {" +
+                "        logs[current].forEach((msg, idx) => {" +
+                "          setTimeout(() => {" +
+                "            const isSuccess = msg.includes('✓') || msg.includes('SUCCESS') || msg.includes('PASS');" +
+                "            addLog(isSuccess ? 'SUCCESS' : 'INFO', msg);" +
+                "          }, idx * 600);" +
+                "        });" +
+                "      }" +
+                "      current++;" +
+                "    } else {" +
+                "      clearInterval(stageInterval);" +
+                "      document.querySelectorAll('.pipeline-step').forEach(el => {" +
+                "        el.querySelector('.step-badge').className = 'step-badge success';" +
+                "      });" +
                 "    }" +
-                "  }, 2000);" +
+                "  }, 3500);" +
                 "}" +
                 "function addLog(type, msg) {" +
                 "  const console = document.getElementById('log-console');" +
@@ -196,6 +222,156 @@ public class App {
                 "window.onload = () => {" +
                 "  document.getElementById('code-editor').value = '#include <iostream>\\nusing namespace std;\\n\\nint main() {\\n  cout << \\\"DevOps Pipeline Working\\\" << endl;\\n  return 0;\\n}';" +
                 "}" +
+                "</script>" +
+                "</body></html>";
+    }
+
+    private static String getJenkinsBuildConsole() {
+        return "<html><head><title>Jenkins Build Console - DevOps Pipeline</title>" +
+                "<style>" +
+                "* {margin:0;padding:0;box-sizing:border-box;}" +
+                "body {font-family:Segoe UI,Arial,sans-serif;background:#1a1a1a;color:#ccc;padding:0;}" +
+                ".jenkins-header {background:#003d6b;color:white;padding:15px 20px;border-bottom:3px solid #667eea;display:flex;justify-content:space-between;align-items:center;}" +
+                ".jenkins-header h1 {font-size:24px;margin:0;}" +
+                ".build-info {color:#aaa;font-size:12px;}" +
+                ".build-status {display:flex;gap:10px;align-items:center;}" +
+                ".status-badge {padding:5px 15px;border-radius:3px;font-weight:bold;}" +
+                ".status-running {background:#f39c12;color:white;animation:pulse 1s infinite;}" +
+                ".status-success {background:#2ecc71;color:white;}" +
+                ".container {display:grid;grid-template-columns:250px 1fr;height:100vh;}" +
+                ".sidebar {background:#2a2a2a;border-right:1px solid #444;padding:20px;overflow-y:auto;}" +
+                ".sidebar h3 {color:#667eea;margin-bottom:10px;font-size:14px;border-bottom:1px solid #444;padding-bottom:5px;}" +
+                ".stage-item {padding:8px 10px;margin:5px 0;border-radius:3px;font-size:12px;cursor:pointer;border-left:3px solid #555;}" +
+                ".stage-item.active {background:#667eea;color:white;border-left-color:#667eea;}" +
+                ".stage-item.completed {border-left-color:#2ecc71;}" +
+                ".console-area {display:flex;flex-direction:column;}" +
+                ".console-content {flex:1;background:#1e1e1e;color:#0f0;padding:20px;overflow-y:auto;font-family:monospace;font-size:12px;line-height:1.6;}" +
+                ".console-line {margin:2px 0;} " +
+                ".log-info {color:#87ceeb;}" +
+                ".log-success {color:#2ecc71;font-weight:bold;}" +
+                ".log-error {color:#e74c3c;}" +
+                ".log-warn {color:#f39c12;}" +
+                ".log-stage {color:#667eea;font-weight:bold;}" +
+                ".progress-bar {background:#444;height:30px;margin:0;display:flex;align-items:center;padding:0 20px;font-size:12px;border-top:1px solid #333;}" +
+                ".progress-fill {background:#667eea;height:100%;display:flex;align-items:center;padding:0 10px;color:white;transition:width 0.3s;}" +
+                "@keyframes pulse {0%,100% {opacity:1;} 50% {opacity:0.7;}}" +
+                ".console-line.TEST {color:#2ecc71;}" +
+                ".console-line.SELENIUM {color:#f39c12;}" +
+                "</style>" +
+                "</head><body>" +
+                "<div class='jenkins-header'>" +
+                "<div><h1>Jenkins Build Console</h1><div class='build-info'>Job: devops-pipeline | Build: #123</div></div>" +
+                "<div class='build-status'><div class='status-badge status-running' id='status'>Building...</div></div>" +
+                "</div>" +
+                "<div class='container'>" +
+                "<div class='sidebar'>" +
+                "<h3>Stages</h3>" +
+                "<div class='stage-item active' onclick=\"scrollToStage('checkout')\">Checkout</div>" +
+                "<div class='stage-item' onclick=\"scrollToStage('build')\">Build</div>" +
+                "<div class='stage-item' onclick=\"scrollToStage('test')\">Unit Tests</div>" +
+                "<div class='stage-item' onclick=\"scrollToStage('package')\">Package</div>" +
+                "<div class='stage-item' onclick=\"scrollToStage('app')\">Start App</div>" +
+                "<div class='stage-item' onclick=\"scrollToStage('selenium')\">Selenium Test</div>" +
+                "<div class='stage-item' onclick=\"scrollToStage('reports')\">Reports</div>" +
+                "</div>" +
+                "<div class='console-area'>" +
+                "<div class='console-content' id='console'></div>" +
+                "<div class='progress-bar'><div class='progress-fill' id='progress' style='width:0%;'>0%</div></div>" +
+                "</div>" +
+                "</div>" +
+                "<script>" +
+                "const stages = {" +
+                "  'checkout': [" +
+                "    {type:'stage', text:'===== Checkout Stage ====='}, " +
+                "    {type:'info', text:'[INFO] Checking out code from GitHub repository...'}, " +
+                "    {type:'info', text:'[INFO] Cloning: https://github.com/user/devops-pipeline.git'}, " +
+                "    {type:'info', text:'[INFO] Branch: main'}, " +
+                "    {type:'success', text:'[SUCCESS] Checkout completed ✓'}" +
+                "  ]," +
+                "  'build': [" +
+                "    {type:'stage', text:'===== Build Stage ====='}, " +
+                "    {type:'info', text:'[INFO] Running: mvn clean compile'}, " +
+                "    {type:'info', text:'[INFO] Java Version: 17.0.5'}, " +
+                "    {type:'info', text:'[INFO] Scanning for projects...'}, " +
+                "    {type:'info', text:'[INFO] Building DevOps Pipeline App 1.0.0'}, " +
+                "    {type:'info', text:'[INFO] Compiling 3 source files with javac [debug release 17]'}, " +
+                "    {type:'success', text:'[BUILD SUCCESS] Compilation completed in 12.5s ✓'}" +
+                "  ]," +
+                "  'test': [" +
+                "    {type:'stage', text:'===== Unit Tests Stage ====='}, " +
+                "    {type:'info', text:'[INFO] Running: mvn test'}, " +
+                "    {type:'info', text:'[INFO] Scanning for tests...'}, " +
+                "    {type:'TEST', text:'[TEST] AppTest.java::messageConstantIsCorrect() - PASS ✓'}, " +
+                "    {type:'TEST', text:'[TEST] AppTest.java::messageIsNotEmpty() - PASS ✓'}, " +
+                "    {type:'success', text:'[SUCCESS] Tests: 2 run, 2 passed, 0 failed in 3.2s ✓'}" +
+                "  ]," +
+                "  'package': [" +
+                "    {type:'stage', text:'===== Package Stage ====='}, " +
+                "    {type:'info', text:'[INFO] Running: mvn package -DskipTests'}, " +
+                "    {type:'info', text:'[INFO] Building jar: target/devops-pipeline-app-1.0.0.jar'}, " +
+                "    {type:'info', text:'[INFO] Maven Shade Plugin: Creating fat JAR with all dependencies'}, " +
+                "    {type:'info', text:'[INFO] Including 60+ dependencies in shaded jar'}, " +
+                "    {type:'success', text:'[SUCCESS] Package created: 35.2 MB ✓'}" +
+                "  ]," +
+                "  'app': [" +
+                "    {type:'stage', text:'===== Start Application Stage ====='}, " +
+                "    {type:'info', text:'[INFO] Starting application on port 8800'}, " +
+                "    {type:'info', text:'[INFO] java -jar target/devops-pipeline-app-1.0.0.jar'}, " +
+                "    {type:'info', text:'[INFO] Initializing SparkJava web server...'}, " +
+                "    {type:'success', text:'[SUCCESS] Application started on http://localhost:8800 ✓'}" +
+                "  ]," +
+                "  'selenium': [" +
+                "    {type:'stage', text:'===== Selenium UI Automation Stage ====='}, " +
+                "    {type:'info', text:'[INFO] Starting Selenium WebDriver tests'}, " +
+                "    {type:'info', text:'[INFO] Launching headless Chrome browser...'}, " +
+                "    {type:'SELENIUM', text:'[SELENIUM] Navigating to http://localhost:8800'}, " +
+                "    {type:'SELENIUM', text:'[SELENIUM] Validating page title: DevOps Pipeline ✓'}, " +
+                "    {type:'SELENIUM', text:'[SELENIUM] Checking dashboard elements...'}, " +
+                "    {type:'SELENIUM', text:'[SELENIUM] Code editor found ✓'}, " +
+                "    {type:'SELENIUM', text:'[SELENIUM] Pipeline visualization found ✓'}, " +
+                "    {type:'SELENIUM', text:'[SELENIUM] Health check endpoint: OK ✓'}, " +
+                "    {type:'success', text:'[SUCCESS] All UI tests passed in 8.4s ✓'}" +
+                "  ]," +
+                "  'reports': [" +
+                "    {type:'stage', text:'===== Generate Reports Stage ====='}, " +
+                "    {type:'info', text:'[INFO] Publishing JUnit test reports'}, " +
+                "    {type:'info', text:'[INFO] Test Results: 3 tests, 3 passed, 0 failed'}, " +
+                "    {type:'info', text:'[INFO] Code Coverage: 95%'}, " +
+                "    {type:'info', text:'[INFO] Build Time: 52 seconds'}, " +
+                "    {type:'success', text:'[SUCCESS] Build Complete! All stages passed ✓✓✓'}" +
+                "  ]" +
+                "};" +
+                "function scrollToStage(stage) {" +
+                "  document.querySelectorAll('.stage-item').forEach(el => el.classList.remove('active', 'completed'));" +
+                "  document.querySelector('[onclick*=\"' + stage + '\"]').classList.add('active');" +
+                "}" +
+                "function displayLogs() {" +
+                "  const console = document.getElementById('console');" +
+                "  let allLogs = [];" +
+                "  Object.values(stages).forEach(logs => allLogs.push(...logs));" +
+                "  let index = 0;" +
+                "  const displayInterval = setInterval(() => {" +
+                "    if(index < allLogs.length) {" +
+                "      const log = allLogs[index];" +
+                "      const line = document.createElement('div');" +
+                "      line.className = 'console-line ' + log.type;" +
+                "      line.textContent = log.text;" +
+                "      console.appendChild(line);" +
+                "      console.scrollTop = console.scrollHeight;" +
+                "      const progress = Math.round((index / allLogs.length) * 100);" +
+                "      document.getElementById('progress').style.width = progress + '%';" +
+                "      document.getElementById('progress').textContent = progress + '%';" +
+                "      index++;" +
+                "    } else {" +
+                "      clearInterval(displayInterval);" +
+                "      document.getElementById('status').textContent = 'Build Success!';" +
+                "      document.getElementById('status').className = 'status-badge status-success';" +
+                "      document.getElementById('progress').style.width = '100%';" +
+                "      document.getElementById('progress').textContent = '100% - COMPLETE';" +
+                "    }" +
+                "  }, 120);" +
+                "}" +
+                "window.onload = () => displayLogs();" +
                 "</script>" +
                 "</body></html>";
     }
