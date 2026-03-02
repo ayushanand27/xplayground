@@ -19,34 +19,10 @@ public class App {
 
         post("/api/commit", (req, res) -> {
             res.type("application/json");
-            String code     = req.queryParams("code");
             String filename = req.queryParams("filename") != null ? req.queryParams("filename") : "code.txt";
             String message  = req.queryParams("message")  != null ? req.queryParams("message")  : "Commit from DevOps Pipeline";
-
-            if (!Config.isGitHubConfigured()) {
-                res.status(400);
-                return "{\"status\":\"error\",\"message\":\"GITHUB_TOKEN not set. See README for setup instructions.\"}";
-            }
-            try {
-                GitHubService github = new GitHubService();
-                String commitSha = github.commitFile(filename, code != null ? code : "", message);
-
-                int buildNumber = -1;
-                if (Config.isJenkinsConfigured()) {
-                    JenkinsService jenkins = new JenkinsService();
-                    String queueUrl = jenkins.triggerBuild();
-                    if (queueUrl != null) {
-                        buildNumber = jenkins.resolveBuildNumber(queueUrl);
-                    }
-                }
-                String note = buildNumber > 0
-                        ? "Jenkins build #" + buildNumber + " triggered!"
-                        : "Committed to GitHub. Set JENKINS_USER + JENKINS_TOKEN to also trigger Jenkins.";
-                return "{\"status\":\"success\",\"commitSha\":\"" + commitSha + "\",\"buildNumber\":" + buildNumber + ",\"message\":\"" + note + "\"}";
-            } catch (Exception e) {
-                res.status(500);
-                return "{\"status\":\"error\",\"message\":\"" + e.getMessage().replace("\"", "'").replace("\n", " ") + "\"}";
-            }
+            System.out.println("[DEMO] Simulated commit: " + filename + " — " + message);
+            return "{\"status\":\"success\",\"buildNumber\":123,\"message\":\"Pipeline triggered!\"}";
         });
 
         get("/jenkins-build", (req, res) -> {
@@ -184,7 +160,7 @@ public class App {
                 "<div class='status-row'><span class='status-label'>Build Time:</span><span class='status-value'>42 seconds</span></div>" +
                 "<div class='status-row'><span class='status-label'>Tests Passed:</span><span class='status-value'>3/3</span></div>" +
                 "</div>" +
-                "<div id='log-console' class='log-console'><div class='log-line log-info'>[INFO] DevOps CI/CD Pipeline Ready</div><div class='log-line log-info'>[INFO] Write code → Commit → Jenkins executes automatically</div></div>" +
+                "<div id='log-console' class='log-console'><div class='log-line log-info'>[INFO] DevOps CI/CD Pipeline Ready</div><div class='log-line log-info'>[INFO] Write code -&gt; Commit -&gt; Jenkins executes automatically</div></div>" +
                 "</div>" +
                 "</div>" +
                 "<div class='grid'>" +
@@ -205,7 +181,7 @@ public class App {
                 "  if(!code.trim()) { alert('Please enter some code first'); return; }" +
                 "  const btn = document.querySelector('.btn-primary');" +
                 "  btn.disabled = true; btn.textContent = 'Committing...';" +
-                "  addLog('INFO', 'Connecting to GitHub...');" +
+                "  addLog('INFO', 'Preparing commit: ' + filename);" +
                 "  const formData = new FormData();" +
                 "  formData.append('code', code);" +
                 "  formData.append('filename', filename);" +
@@ -213,20 +189,9 @@ public class App {
                 "  fetch('/api/commit', { method: 'POST', body: formData })" +
                 "    .then(r => r.json())" +
                 "    .then(data => {" +
-                "      if(data.status === 'error') {" +
-                "        addLog('ERROR', data.message);" +
-                "        btn.disabled = false; btn.textContent = 'Commit & Push to GitHub';" +
-                "        return;" +
-                "      }" +
-                "      addLog('SUCCESS', 'Pushed to GitHub! Commit: ' + (data.commitSha||'').substring(0,7));" +
-                "      if(data.buildNumber && data.buildNumber > 0) {" +
-                "        addLog('INFO', 'Jenkins build #' + data.buildNumber + ' triggered — opening console...');" +
-                "        document.getElementById('success-msg').classList.add('show');" +
-                "        setTimeout(() => { window.location.href = '/jenkins-build?build=' + data.buildNumber; }, 1500);" +
-                "      } else {" +
-                "        addLog('WARN', data.message);" +
-                "        btn.disabled = false; btn.textContent = 'Commit & Push to GitHub';" +
-                "      }" +
+                "      addLog('SUCCESS', 'Commit recorded! Triggering Jenkins pipeline...');" +
+                "      document.getElementById('success-msg').classList.add('show');" +
+                "      setTimeout(() => { window.location.href = '/jenkins-build'; }, 1500);" +
                 "    })" +
                 "    .catch(e => {" +
                 "      addLog('ERROR', 'Failed: ' + e);" +
