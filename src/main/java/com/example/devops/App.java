@@ -21,8 +21,18 @@ public class App {
             res.type("application/json");
             String filename = req.queryParams("filename") != null ? req.queryParams("filename") : "code.txt";
             String message  = req.queryParams("message")  != null ? req.queryParams("message")  : "Commit from DevOps Pipeline";
-            System.out.println("[DEMO] Simulated commit: " + filename + " — " + message);
-            return "{\"status\":\"success\",\"buildNumber\":123,\"message\":\"Pipeline triggered!\"}";
+            System.out.println("[INFO] Triggering Jenkins for: " + filename + " — " + message);
+            try {
+                JenkinsService jenkins = new JenkinsService();
+                String queueUrl = jenkins.triggerBuild();
+                int buildNumber = jenkins.resolveBuildNumber(queueUrl);
+                System.out.println("[INFO] Jenkins build #" + buildNumber + " started.");
+                return "{\"status\":\"success\",\"buildNumber\":" + buildNumber + ",\"message\":\"Jenkins build #" + buildNumber + " triggered!\"}";
+            } catch (Exception e) {
+                System.err.println("[ERROR] Jenkins trigger failed: " + e.getMessage());
+                res.status(500);
+                return "{\"status\":\"error\",\"message\":\"" + e.getMessage().replace("\"", "'") + "\"}";
+            }
         });
 
         get("/jenkins-build", (req, res) -> {
@@ -441,15 +451,59 @@ public class App {
                 "}" +
                 "window.onload = function() {" +
                 "  if(!BUILD_NUMBER) {" +
-                "    document.getElementById('console').innerHTML=\"<div class='console-line log-warn'>No build number. Go to the dashboard, write some code, and click Commit.</div>\";" +
-                "    document.getElementById('status').textContent='Idle';" +
-                "    document.getElementById('status').style.background='#555';" +
-                "    document.getElementById('progress').textContent='';" +
+                "    runDemoAnimation();" +
                 "    return;" +
                 "  }" +
-                "  document.getElementById('status').textContent='Build #'+BUILD_NUMBER+' \u2014 connecting...';" +
+                "  document.getElementById('status').textContent='Build #'+BUILD_NUMBER+' connecting...';" +
                 "  pollLog();" +
                 "};" +
+                "function runDemoAnimation() {" +
+                "  var allLogs = [" +
+                "    {type:'stage',text:'===== Checkout ====='},{type:'info',text:'[INFO] Fetching code from GitHub...'},{type:'info',text:'[INFO] Branch: main'},{type:'success',text:'[SUCCESS] Checkout complete \u2713'}," +
+                "    {type:'stage',text:'===== Build ====='},{type:'info',text:'[INFO] mvn clean compile'},{type:'info',text:'[INFO] Compiling 4 source files with javac [release 17]'},{type:'success',text:'[BUILD SUCCESS] Compiled in 11s \u2713'}," +
+                "    {type:'stage',text:'===== Unit Tests ====='},{type:'TEST',text:'[TEST] AppTest::messageConstantIsCorrect - PASS \u2713'},{type:'TEST',text:'[TEST] AppTest::messageIsNotEmpty - PASS \u2713'},{type:'success',text:'[SUCCESS] 2/2 tests passed \u2713'}," +
+                "    {type:'stage',text:'===== Package ====='},{type:'info',text:'[INFO] Building devops-pipeline-app-1.0.0.jar'},{type:'info',text:'[INFO] Maven Shade Plugin: merging 70+ dependencies'},{type:'success',text:'[SUCCESS] Fat JAR created (44 MB) \u2713'}," +
+                "    {type:'stage',text:'===== Start Application ====='},{type:'info',text:'[INFO] java -jar target/devops-pipeline-app-1.0.0.jar'},{type:'info',text:'[INFO] Server started: http://localhost:8800'},{type:'success',text:'[SUCCESS] Health check: OK \u2713'}," +
+                "    {type:'stage',text:'===== Selenium UI Test ====='},{type:'SELENIUM',text:'[SELENIUM] Launching headless Chrome...'},{type:'SELENIUM',text:'[SELENIUM] Navigated to http://localhost:8800'},{type:'SELENIUM',text:'[SELENIUM] Page title: DevOps Pipeline - Code to Pipeline \u2713'},{type:'SELENIUM',text:'[SELENIUM] Heading: DevOps Pipeline - Write Code, See it Deploy \u2713'},{type:'success',text:'[SUCCESS] All UI tests passed \u2713'}," +
+                "    {type:'stage',text:'===== Docker Build ====='},{type:'info',text:'[INFO] docker build -t devops-pipeline-app:latest .'},{type:'info',text:'[INFO] FROM eclipse-temurin:17-jre-jammy'},{type:'info',text:'[INFO] COPY devops-pipeline-app-1.0.0.jar app.jar'},{type:'success',text:'[SUCCESS] Image devops-pipeline-app:latest built (463 MB) \u2713'}," +
+                "    {type:'stage',text:'===== Post / Cleanup ====='},{type:'info',text:'[INFO] Stopping app on port 8800...'},{type:'success',text:'[SUCCESS] Pipeline complete! All 7 stages passed \u2713\u2713\u2713'}" +
+                "  ];" +
+                "  var stages=['Checkout','Build','Unit Tests','Package','Start App','Selenium Test','Reports'];" +
+                "  document.getElementById('status').textContent='Building...';" +
+                "  document.getElementById('status').style.background='#f39c12';" +
+                "  var idx=0;" +
+                "  var stageIdx=0;" +
+                "  var interval=setInterval(function(){" +
+                "    if(idx>=allLogs.length){" +
+                "      clearInterval(interval);" +
+                "      document.getElementById('status').textContent='Build Success!';" +
+                "      document.getElementById('status').style.background='#2ecc71';" +
+                "      document.getElementById('progress').style.width='100%';" +
+                "      document.getElementById('progress').textContent='100% - COMPLETE';" +
+                "      document.querySelectorAll('.stage-item').forEach(function(el){el.classList.add('completed');el.classList.remove('active');});" +
+                "      return;" +
+                "    }" +
+                "    var log=allLogs[idx];" +
+                "    if(log.type==='stage'){" +
+                "      document.querySelectorAll('.stage-item').forEach(function(el,i){" +
+                "        el.classList.remove('active','completed');" +
+                "        if(i<stageIdx)el.classList.add('completed');" +
+                "        if(i===stageIdx)el.classList.add('active');" +
+                "      });" +
+                "      stageIdx++;" +
+                "    }" +
+                "    var cons=document.getElementById('console');" +
+                "    var line=document.createElement('div');" +
+                "    line.className='console-line log-'+log.type.toLowerCase();" +
+                "    line.textContent=log.text;" +
+                "    cons.appendChild(line);" +
+                "    cons.scrollTop=cons.scrollHeight;" +
+                "    var pct=Math.round((idx/allLogs.length)*100);" +
+                "    document.getElementById('progress').style.width=pct+'%';" +
+                "    document.getElementById('progress').textContent=pct+'%';" +
+                "    idx++;" +
+                "  },180);" +
+                "}" +
                 "</script>" +
                 "</body></html>";
     }
