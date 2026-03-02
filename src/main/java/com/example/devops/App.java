@@ -1,6 +1,8 @@
 package com.example.devops;
 
-import static spark.Spark.*;
+import static spark.Spark.get;
+import static spark.Spark.port;
+import static spark.Spark.post;
 
 public class App {
     public static final String MESSAGE = "DevOps Pipeline Working";
@@ -17,20 +19,68 @@ public class App {
 
         post("/api/commit", (req, res) -> {
             res.type("application/json");
-            String code = req.queryParams("code");
-            String filename = req.queryParams("filename");
-            String message = req.queryParams("message");
-            
-            System.out.println("Commit to GitHub: " + filename);
-            System.out.println("Message: " + message);
-            System.out.println("Code size: " + (code != null ? code.length() : 0) + " bytes");
-            
-            return "{\"status\":\"success\",\"message\":\"Code committed to GitHub. Jenkins pipeline triggered!\",\"jenkins_build_url\":\"http://localhost:8080/job/devops-pipeline/123/\"}";
+            String code     = req.queryParams("code");
+            String filename = req.queryParams("filename") != null ? req.queryParams("filename") : "code.txt";
+            String message  = req.queryParams("message")  != null ? req.queryParams("message")  : "Commit from DevOps Pipeline";
+
+            if (!Config.isGitHubConfigured()) {
+                res.status(400);
+                return "{\"status\":\"error\",\"message\":\"GITHUB_TOKEN not set. See README for setup instructions.\"}";
+            }
+            try {
+                GitHubService github = new GitHubService();
+                String commitSha = github.commitFile(filename, code != null ? code : "", message);
+
+                int buildNumber = -1;
+                if (Config.isJenkinsConfigured()) {
+                    JenkinsService jenkins = new JenkinsService();
+                    String queueUrl = jenkins.triggerBuild();
+                    if (queueUrl != null) {
+                        buildNumber = jenkins.resolveBuildNumber(queueUrl);
+                    }
+                }
+                String note = buildNumber > 0
+                        ? "Jenkins build #" + buildNumber + " triggered!"
+                        : "Committed to GitHub. Set JENKINS_USER + JENKINS_TOKEN to also trigger Jenkins.";
+                return "{\"status\":\"success\",\"commitSha\":\"" + commitSha + "\",\"buildNumber\":" + buildNumber + ",\"message\":\"" + note + "\"}";
+            } catch (Exception e) {
+                res.status(500);
+                return "{\"status\":\"error\",\"message\":\"" + e.getMessage().replace("\"", "'").replace("\n", " ") + "\"}";
+            }
         });
 
         get("/jenkins-build", (req, res) -> {
             res.type("text/html");
-            return getJenkinsBuildConsole();
+            String build = req.queryParams("build");
+            return getJenkinsBuildConsole(build != null ? build : "latest");
+        });
+
+        get("/api/build-status/:number", (req, res) -> {
+            res.type("application/json");
+            if (!Config.isJenkinsConfigured()) {
+                return "{\"error\":\"Jenkins not configured — set JENKINS_USER and JENKINS_TOKEN.\"}";
+            }
+            try {
+                JenkinsService jenkins = new JenkinsService();
+                return jenkins.getBuildStatus(Integer.parseInt(req.params("number")));
+            } catch (Exception e) {
+                res.status(500);
+                return "{\"error\":\"" + e.getMessage().replace("\"", "'") + "\"}";
+            }
+        });
+
+        get("/api/build-log/:number", (req, res) -> {
+            res.type("text/plain");
+            if (!Config.isJenkinsConfigured()) {
+                return "Jenkins not configured — set JENKINS_USER and JENKINS_TOKEN environment variables.";
+            }
+            try {
+                JenkinsService jenkins = new JenkinsService();
+                return jenkins.getConsoleOutput(Integer.parseInt(req.params("number")));
+            } catch (Exception e) {
+                res.status(500);
+                return "Error fetching Jenkins log: " + e.getMessage();
+            }
         });
 
         System.out.println("Server started: http://localhost:8800");
@@ -152,23 +202,36 @@ public class App {
                 "  const code = document.getElementById('code-editor').value;" +
                 "  const filename = document.getElementById('filename').value || 'code.java';" +
                 "  const message = document.getElementById('commit-msg').value || 'Update from DevOps Pipeline';" +
-                "  if(!code.trim()) { alert('Please enter some code'); return; }" +
+                "  if(!code.trim()) { alert('Please enter some code first'); return; }" +
+                "  const btn = document.querySelector('.btn-primary');" +
+                "  btn.disabled = true; btn.textContent = 'Committing...';" +
+                "  addLog('INFO', 'Connecting to GitHub...');" +
                 "  const formData = new FormData();" +
                 "  formData.append('code', code);" +
                 "  formData.append('filename', filename);" +
                 "  formData.append('message', message);" +
-                "  document.getElementById('success-msg').classList.add('show');" +
-                "  addLog('INFO', 'Pushing code to GitHub...');" +
                 "  fetch('/api/commit', { method: 'POST', body: formData })" +
                 "    .then(r => r.json())" +
                 "    .then(data => {" +
-                "      addLog('SUCCESS', 'Code pushed to GitHub successfully ✓');" +
-                "      addLog('INFO', 'Jenkins build #123 triggered...');" +
-                "      setTimeout(() => {" +
-                "        window.location.href = '/jenkins-build';" +
-                "      }, 1500);" +
+                "      if(data.status === 'error') {" +
+                "        addLog('ERROR', data.message);" +
+                "        btn.disabled = false; btn.textContent = 'Commit & Push to GitHub';" +
+                "        return;" +
+                "      }" +
+                "      addLog('SUCCESS', 'Pushed to GitHub! Commit: ' + (data.commitSha||'').substring(0,7));" +
+                "      if(data.buildNumber && data.buildNumber > 0) {" +
+                "        addLog('INFO', 'Jenkins build #' + data.buildNumber + ' triggered — opening console...');" +
+                "        document.getElementById('success-msg').classList.add('show');" +
+                "        setTimeout(() => { window.location.href = '/jenkins-build?build=' + data.buildNumber; }, 1500);" +
+                "      } else {" +
+                "        addLog('WARN', data.message);" +
+                "        btn.disabled = false; btn.textContent = 'Commit & Push to GitHub';" +
+                "      }" +
                 "    })" +
-                "    .catch(e => { addLog('ERROR', 'Commit failed: ' + e); });" +
+                "    .catch(e => {" +
+                "      addLog('ERROR', 'Failed: ' + e);" +
+                "      btn.disabled = false; btn.textContent = 'Commit & Push to GitHub';" +
+                "    });" +
                 "}" +
                 "function updatePipelineStatus() {" +
                 "  const steps = ['Checkout', 'Build', 'Test', 'Package', 'Selenium', 'Reports'];" +
@@ -226,7 +289,7 @@ public class App {
                 "</body></html>";
     }
 
-    private static String getJenkinsBuildConsole() {
+    private static String getJenkinsBuildConsole(String buildNumber) {
         return "<html><head><title>Jenkins Build Console - DevOps Pipeline</title>" +
                 "<style>" +
                 "* {margin:0;padding:0;box-sizing:border-box;}" +
@@ -341,37 +404,87 @@ public class App {
                 "    {type:'success', text:'[SUCCESS] Build Complete! All stages passed ✓✓✓'}" +
                 "  ]" +
                 "};" +
-                "function scrollToStage(stage) {" +
-                "  document.querySelectorAll('.stage-item').forEach(el => el.classList.remove('active', 'completed'));" +
-                "  document.querySelector('[onclick*=\"' + stage + '\"]').classList.add('active');" +
+                "const BUILD_NUMBER = " + (buildNumber.equals("latest") ? "null" : buildNumber) + ";" +
+                "let lastLogLen = 0;" +
+                "function getLineClass(l) {" +
+                "  if(l.includes('BUILD SUCCESS')||(l.includes('Tests run')&&l.includes('Failures: 0'))) return 'log-success';" +
+                "  if(l.includes('BUILD FAILURE')||l.includes('FAILED')) return 'log-error';" +
+                "  if(l.includes('ERROR')&&!l.includes('[INFO]')) return 'log-error';" +
+                "  if(l.includes('WARNING')||l.includes('WARN')) return 'log-warn';" +
+                "  if(l.includes('[Pipeline]')) return 'log-stage';" +
+                "  return 'log-info';" +
                 "}" +
-                "function displayLogs() {" +
-                "  const console = document.getElementById('console');" +
-                "  let allLogs = [];" +
-                "  Object.values(stages).forEach(logs => allLogs.push(...logs));" +
-                "  let index = 0;" +
-                "  const displayInterval = setInterval(() => {" +
-                "    if(index < allLogs.length) {" +
-                "      const log = allLogs[index];" +
-                "      const line = document.createElement('div');" +
-                "      line.className = 'console-line ' + log.type;" +
-                "      line.textContent = log.text;" +
-                "      console.appendChild(line);" +
-                "      console.scrollTop = console.scrollHeight;" +
-                "      const progress = Math.round((index / allLogs.length) * 100);" +
-                "      document.getElementById('progress').style.width = progress + '%';" +
-                "      document.getElementById('progress').textContent = progress + '%';" +
-                "      index++;" +
-                "    } else {" +
-                "      clearInterval(displayInterval);" +
-                "      document.getElementById('status').textContent = 'Build Success!';" +
-                "      document.getElementById('status').className = 'status-badge status-success';" +
-                "      document.getElementById('progress').style.width = '100%';" +
-                "      document.getElementById('progress').textContent = '100% - COMPLETE';" +
+                "function appendLines(text) {" +
+                "  const con = document.getElementById('console');" +
+                "  text.split('\\n').forEach(line => {" +
+                "    if(!line.trim()) return;" +
+                "    const d = document.createElement('div');" +
+                "    d.className = 'console-line ' + getLineClass(line);" +
+                "    d.textContent = line;" +
+                "    con.appendChild(d);" +
+                "  });" +
+                "  con.scrollTop = con.scrollHeight;" +
+                "}" +
+                "function updateSidebar(text) {" +
+                "  [['checkout','(Checkout)'],['build','(Build)'],['test','(Unit Tests)']," +
+                "   ['package','(Package)'],['app','(Start Application)'],['selenium','(Selenium'],['reports','(Docker']" +
+                "  ].forEach(([key,marker]) => {" +
+                "    if(text.includes(marker)) {" +
+                "      const el = document.querySelector('[onclick*=\"'+key+'\"]');" +
+                "      if(el) el.classList.add('completed');" +
                 "    }" +
-                "  }, 120);" +
+                "  });" +
                 "}" +
-                "window.onload = () => displayLogs();" +
+                "function scrollToStage(s) {" +
+                "  document.querySelectorAll('.stage-item').forEach(e=>e.classList.remove('active'));" +
+                "  const el=document.querySelector('[onclick*=\"'+s+'\"]'); if(el) el.classList.add('active');" +
+                "}" +
+                "function pollLog() {" +
+                "  fetch('/api/build-log/'+BUILD_NUMBER)" +
+                "    .then(r=>r.text())" +
+                "    .then(text=>{" +
+                "      if(text.length > lastLogLen) {" +
+                "        appendLines(text.substring(lastLogLen));" +
+                "        lastLogLen = text.length;" +
+                "        const pct=Math.min(90,Math.round(lastLogLen/600));" +
+                "        document.getElementById('progress').style.width=pct+'%';" +
+                "        document.getElementById('progress').textContent=pct+'%';" +
+                "        updateSidebar(text);" +
+                "      }" +
+                "      checkStatus();" +
+                "    }).catch(()=>setTimeout(pollLog,5000));" +
+                "}" +
+                "function checkStatus() {" +
+                "  fetch('/api/build-status/'+BUILD_NUMBER)" +
+                "    .then(r=>r.json())" +
+                "    .then(data=>{" +
+                "      if(data.building) { setTimeout(pollLog,2000); return; }" +
+                "      const prog=document.getElementById('progress');" +
+                "      prog.style.width='100%';" +
+                "      if(data.result==='SUCCESS') {" +
+                "        document.getElementById('status').textContent='BUILD SUCCESS';" +
+                "        document.getElementById('status').className='status-badge status-success';" +
+                "        prog.textContent='100% - SUCCESS';" +
+                "        document.querySelectorAll('.stage-item').forEach(e=>e.classList.add('completed'));" +
+                "      } else {" +
+                "        document.getElementById('status').textContent='BUILD FAILED';" +
+                "        document.getElementById('status').style.background='#e74c3c';" +
+                "        prog.textContent='FAILED'; prog.style.background='#e74c3c';" +
+                "      }" +
+                "      pollLog();" +
+                "    }).catch(()=>setTimeout(checkStatus,5000));" +
+                "}" +
+                "window.onload = function() {" +
+                "  if(!BUILD_NUMBER) {" +
+                "    document.getElementById('console').innerHTML=\"<div class='console-line log-warn'>No build number. Go to the dashboard, write some code, and click Commit.</div>\";" +
+                "    document.getElementById('status').textContent='Idle';" +
+                "    document.getElementById('status').style.background='#555';" +
+                "    document.getElementById('progress').textContent='';" +
+                "    return;" +
+                "  }" +
+                "  document.getElementById('status').textContent='Build #'+BUILD_NUMBER+' \u2014 connecting...';" +
+                "  pollLog();" +
+                "};" +
                 "</script>" +
                 "</body></html>";
     }
