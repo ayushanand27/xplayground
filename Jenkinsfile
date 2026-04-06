@@ -135,6 +135,100 @@ pipeline {
             }
         }
 
+        stage('Build Frontend') {
+            when {
+                expression { return fileExists('frontend/package.json') }
+            }
+            steps {
+                bat '''
+                    @echo off
+                    echo Building frontend app in frontend/...
+                    cd /d frontend
+                    call npm install
+                    if errorlevel 1 (
+                        echo [ERROR] npm install failed.
+                        exit /b 1
+                    )
+
+                    call npm run build
+                    if errorlevel 1 (
+                        echo [ERROR] npm run build failed.
+                        exit /b 1
+                    )
+
+                    echo [SUCCESS] Frontend build completed!
+                '''
+            }
+        }
+
+        stage('Docker Compose Build') {
+            when {
+                expression { return fileExists('docker-compose.yml') }
+            }
+            steps {
+                bat '''
+                    @echo off
+                    echo Running docker-compose build...
+                    docker-compose build
+                    if errorlevel 1 (
+                        echo [ERROR] docker-compose build failed.
+                        exit /b 1
+                    )
+
+                    echo [SUCCESS] docker-compose build completed!
+                '''
+            }
+        }
+
+        stage('Push to DockerHub') {
+            when {
+                expression { return fileExists('Dockerfile') }
+            }
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKERHUB_USER', passwordVariable: 'DOCKERHUB_PASS')]) {
+                    bat '''
+                        @echo off
+                        echo Logging in to DockerHub...
+                        echo %DOCKERHUB_PASS% | docker login --username "%DOCKERHUB_USER%" --password-stdin
+                        if errorlevel 1 (
+                            echo [ERROR] DockerHub login failed.
+                            exit /b 1
+                        )
+
+                        echo Tagging image as %DOCKERHUB_USER%/devops-pipeline-app:latest...
+                        docker tag devops-pipeline-app:latest %DOCKERHUB_USER%/devops-pipeline-app:latest
+                        if errorlevel 1 (
+                            echo [ERROR] Failed to tag latest image.
+                            exit /b 1
+                        )
+
+                        echo Tagging image as %DOCKERHUB_USER%/devops-pipeline-app:%BUILD_NUMBER%...
+                        docker tag devops-pipeline-app:latest %DOCKERHUB_USER%/devops-pipeline-app:%BUILD_NUMBER%
+                        if errorlevel 1 (
+                            echo [ERROR] Failed to tag build-number image.
+                            exit /b 1
+                        )
+
+                        echo Pushing %DOCKERHUB_USER%/devops-pipeline-app:latest...
+                        docker push %DOCKERHUB_USER%/devops-pipeline-app:latest
+                        if errorlevel 1 (
+                            echo [ERROR] Failed to push latest image.
+                            exit /b 1
+                        )
+
+                        echo Pushing %DOCKERHUB_USER%/devops-pipeline-app:%BUILD_NUMBER%...
+                        docker push %DOCKERHUB_USER%/devops-pipeline-app:%BUILD_NUMBER%
+                        if errorlevel 1 (
+                            echo [ERROR] Failed to push build-number image.
+                            exit /b 1
+                        )
+
+                        echo [SUCCESS] DockerHub push completed!
+                    '''
+                }
+            }
+        }
+
     }
 
     post {

@@ -1,13 +1,19 @@
-# Build a minimal runtime image for the Java app
-# eclipse-temurin is the official successor to the deprecated openjdk Docker images
+FROM maven:3.9.9-eclipse-temurin-17 AS build
+WORKDIR /app
+
+COPY pom.xml .
+COPY src ./src
+RUN mvn -B -ntp clean package -DskipTests
+
 FROM eclipse-temurin:17-jre-jammy
 WORKDIR /app
 
-# Copy the shaded (fat) jar produced by Maven Shade Plugin
-# Shade plugin replaces the original jar in-place, so the file is devops-pipeline-app-1.0.0.jar
-COPY target/devops-pipeline-app-1.0.0.jar app.jar
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends curl \
+	&& rm -rf /var/lib/apt/lists/*
 
-# Expose the application HTTP port
+COPY --from=build /app/target/devops-pipeline-app-1.0.0.jar app.jar
+
 EXPOSE 8800
 
 ENTRYPOINT ["java","-jar","/app/app.jar"]

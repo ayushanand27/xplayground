@@ -1,0 +1,74 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - '8800:8800'
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8800/health >/dev/null"]
+      interval: 30s
+      retries: 3
+      timeout: 5s
+    networks:
+      - devops-net
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    depends_on:
+      - backend
+    ports:
+      - '9090:9090'
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    healthcheck:
+      test: ["CMD-SHELL", "sh -c 'command -v curl >/dev/null 2>&1 && curl -fsS http://localhost:9090/-/healthy >/dev/null || wget -qO- http://localhost:9090/-/healthy >/dev/null'"]
+      interval: 30s
+      retries: 3
+      timeout: 5s
+    networks:
+      - devops-net
+
+  grafana:
+    image: grafana/grafana-oss:11.2.2
+    depends_on:
+      - prometheus
+    ports:
+      - '3001:3000'
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+    volumes:
+      - ./monitoring/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    networks:
+      - devops-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    depends_on:
+      - backend
+    links:
+      - backend
+    ports:
+      - '3000:80'
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:80 >/dev/null"]
+      interval: 30s
+      retries: 3
+      timeout: 5s
+    networks:
+      - devops-net
+
+networks:
+  devops-net:
+    driver: bridge
+
+volumes:
+  grafana-data:

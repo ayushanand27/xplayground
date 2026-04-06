@@ -1,23 +1,57 @@
 package com.example.devops;
 
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.prometheus.PrometheusConfig;
+import io.micrometer.prometheus.PrometheusMeterRegistry;
+import static spark.Spark.after;
 import static spark.Spark.get;
+import static spark.Spark.options;
 import static spark.Spark.port;
 import static spark.Spark.post;
 
 public class App {
     public static final String MESSAGE = "DevOps Pipeline Working";
+    private static final String REQUEST_COUNTER_NAME = "http_requests_total";
+    private static final PrometheusMeterRegistry PROMETHEUS_REGISTRY = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
+    private static final ConcurrentMap<String, Counter> ENDPOINT_COUNTERS = new ConcurrentHashMap<>();
 
     public static void main(String[] args) {
         port(8800);
 
-        get("/health", (req, res) -> "OK");
+        options("/*", (req, res) -> {
+            String requestedHeaders = req.headers("Access-Control-Request-Headers");
+            if (requestedHeaders != null) {
+                res.header("Access-Control-Allow-Headers", requestedHeaders);
+            }
+            String requestedMethod = req.headers("Access-Control-Request-Method");
+            if (requestedMethod != null) {
+                res.header("Access-Control-Allow-Methods", requestedMethod);
+            }
+            return "OK";
+        });
+
+        after((req, res) -> {
+            res.header("Access-Control-Allow-Origin", "*");
+            res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+            res.header("Access-Control-Allow-Headers", "Content-Type,Authorization");
+        });
+
+        get("/health", (req, res) -> {
+            incrementEndpointCounter("/health");
+            return "OK";
+        });
 
         get("/", (req, res) -> {
+            incrementEndpointCounter("/");
             res.type("text/html");
             return getDashboard();
         });
 
         post("/api/commit", (req, res) -> {
+            incrementEndpointCounter("/api/commit");
             res.type("application/json");
             String filename = req.queryParams("filename") != null ? req.queryParams("filename") : "code.txt";
             String message  = req.queryParams("message")  != null ? req.queryParams("message")  : "Commit from DevOps Pipeline";
@@ -36,12 +70,14 @@ public class App {
         });
 
         get("/jenkins-build", (req, res) -> {
+            incrementEndpointCounter("/jenkins-build");
             res.type("text/html");
             String build = req.queryParams("build");
             return getJenkinsBuildConsole(build != null ? build : "latest");
         });
 
         get("/api/build-status/:number", (req, res) -> {
+            incrementEndpointCounter("/api/build-status/:number");
             res.type("application/json");
             if (!Config.isJenkinsConfigured()) {
                 return "{\"error\":\"Jenkins not configured — set JENKINS_USER and JENKINS_TOKEN.\"}";
@@ -56,6 +92,7 @@ public class App {
         });
 
         get("/api/build-log/:number", (req, res) -> {
+            incrementEndpointCounter("/api/build-log/:number");
             res.type("text/plain");
             if (!Config.isJenkinsConfigured()) {
                 return "Jenkins not configured — set JENKINS_USER and JENKINS_TOKEN environment variables.";
@@ -69,8 +106,23 @@ public class App {
             }
         });
 
+        get("/metrics", (req, res) -> {
+            incrementEndpointCounter("/metrics");
+            res.type("text/plain; version=0.0.4; charset=utf-8");
+            return PROMETHEUS_REGISTRY.scrape();
+        });
+
         System.out.println("Server started: http://localhost:8800");
         System.out.println(MESSAGE);
+    }
+
+    private static void incrementEndpointCounter(String endpoint) {
+        Counter counter = ENDPOINT_COUNTERS.computeIfAbsent(endpoint, key ->
+                Counter.builder(REQUEST_COUNTER_NAME)
+                        .description("Number of times each application endpoint has been called")
+                        .tag("endpoint", key)
+                        .register(PROMETHEUS_REGISTRY));
+        counter.increment();
     }
 
     private static String getDashboard() {
