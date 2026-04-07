@@ -122,7 +122,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: yourdockerhubusername/devops-pipeline-app:latest
+          image: xplayground-backend:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8800
@@ -169,7 +169,7 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: yourdockerhubusername/devops-frontend:latest
+          image: xplayground-frontend:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 80

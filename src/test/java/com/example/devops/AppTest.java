@@ -5,6 +5,9 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.concurrent.locks.LockSupport;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -12,6 +15,49 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
 public class AppTest {
+
+    private static volatile boolean appStarted = false;
+
+    static {
+        try {
+            startAppOnce();
+        } catch (Exception e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
+    static void startAppOnce() throws Exception {
+        if (appStarted) {
+            return;
+        }
+
+        Thread serverThread = new Thread(() -> App.main(new String[0]), "app-test-server");
+        serverThread.setDaemon(true);
+        serverThread.start();
+
+        Instant deadline = Instant.now().plus(Duration.ofSeconds(15));
+        while (Instant.now().isBefore(deadline)) {
+            try {
+                if (healthCheckResponds()) {
+                    appStarted = true;
+                    return;
+                }
+            } catch (Exception ignored) {
+                // Retry until the Spark server is ready.
+            }
+            LockSupport.parkNanos(Duration.ofMillis(250).toNanos());
+        }
+
+        throw new IllegalStateException("Backend did not start on port 8800 in time.");
+    }
+
+    private static boolean healthCheckResponds() throws Exception {
+        HttpURLConnection connection = (HttpURLConnection) new URL("http://localhost:8800/health").openConnection();
+        connection.setRequestMethod("GET");
+        connection.setConnectTimeout(1000);
+        connection.setReadTimeout(1000);
+        return connection.getResponseCode() == 200;
+    }
 
     @Test
     void messageConstantIsCorrect() {

@@ -109,7 +109,7 @@ public class App {
         get("/metrics", (req, res) -> {
             incrementEndpointCounter("/metrics");
             res.type("text/plain; version=0.0.4; charset=utf-8");
-            return PROMETHEUS_REGISTRY.scrape();
+            return buildPrometheusMetrics();
         });
 
         System.out.println("Server started: http://localhost:8800");
@@ -123,6 +123,23 @@ public class App {
                         .tag("endpoint", key)
                         .register(PROMETHEUS_REGISTRY));
         counter.increment();
+    }
+
+    private static String buildPrometheusMetrics() {
+        StringBuilder output = new StringBuilder();
+        output.append("# HELP ").append(REQUEST_COUNTER_NAME).append(" Number of times each application endpoint has been called\n");
+        output.append("# TYPE ").append(REQUEST_COUNTER_NAME).append(" counter\n");
+
+        ENDPOINT_COUNTERS.entrySet().stream()
+                .sorted(java.util.Map.Entry.comparingByKey())
+                .forEach(entry -> output.append(REQUEST_COUNTER_NAME)
+                        .append("{endpoint=\"")
+                        .append(entry.getKey())
+                        .append("\"} ")
+                        .append(entry.getValue().count())
+                        .append('\n'));
+
+        return output.toString();
     }
 
     private static String getDashboard() {
