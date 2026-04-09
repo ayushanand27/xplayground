@@ -9,20 +9,43 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.locks.LockSupport;
 
+import org.junit.jupiter.api.AfterAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+
+import static spark.Spark.awaitStop;
+import static spark.Spark.stop;
 
 public class AppTest {
 
     private static volatile boolean appStarted = false;
+    private static volatile Thread serverThread;
 
-    static {
+    @BeforeAll
+    static void setup() throws Exception {
+        startAppOnce();
+    }
+
+    @AfterAll
+    static void tearDown() {
+        if (!appStarted) {
+            return;
+        }
+
         try {
-            startAppOnce();
-        } catch (Exception e) {
-            throw new ExceptionInInitializerError(e);
+            stop();
+            awaitStop();
+        } catch (Exception ignored) {
+            // Best-effort cleanup for test stability across environments.
+        } finally {
+            appStarted = false;
+            if (serverThread != null) {
+                serverThread.interrupt();
+                serverThread = null;
+            }
         }
     }
 
@@ -31,7 +54,7 @@ public class AppTest {
             return;
         }
 
-        Thread serverThread = new Thread(() -> App.main(new String[0]), "app-test-server");
+        serverThread = new Thread(() -> App.main(new String[0]), "app-test-server");
         serverThread.setDaemon(true);
         serverThread.start();
 
@@ -69,7 +92,7 @@ public class AppTest {
     @Test
     void messageIsNotEmpty() {
         // Additional sanity check
-        assertEquals(false, App.MESSAGE.isEmpty());
+        assertTrue(!App.MESSAGE.isEmpty());
     }
 
     @Test

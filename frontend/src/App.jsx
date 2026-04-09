@@ -141,6 +141,10 @@ function App() {
         : 'Loading';
 
   useEffect(() => {
+    setStages(buildInitialStages());
+  }, []);
+
+  useEffect(() => {
     let intervalId;
 
     const checkHealth = async () => {
