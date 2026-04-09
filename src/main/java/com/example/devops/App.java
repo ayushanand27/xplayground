@@ -63,9 +63,10 @@ public class App {
                 System.out.println("[INFO] Jenkins build #" + buildNumber + " started.");
                 return "{\"status\":\"success\",\"buildNumber\":" + buildNumber + ",\"message\":\"Jenkins build #" + buildNumber + " triggered!\"}";
             } catch (Exception e) {
-                System.err.println("[ERROR] Jenkins trigger failed: " + e.getMessage());
+                String safeMessage = safeErrorMessage(e);
+                System.err.println("[ERROR] Jenkins trigger failed: " + safeMessage);
                 res.status(500);
-                return "{\"status\":\"error\",\"message\":\"" + e.getMessage().replace("\"", "'") + "\"}";
+                return "{\"status\":\"error\",\"message\":\"" + safeMessage.replace("\"", "'") + "\"}";
             }
         });
 
@@ -87,7 +88,7 @@ public class App {
                 return jenkins.getBuildStatus(Integer.parseInt(req.params("number")));
             } catch (Exception e) {
                 res.status(500);
-                return "{\"error\":\"" + e.getMessage().replace("\"", "'") + "\"}";
+                return "{\"error\":\"" + safeErrorMessage(e).replace("\"", "'") + "\"}";
             }
         });
 
@@ -140,6 +141,17 @@ public class App {
                         .append('\n'));
 
         return output.toString();
+    }
+
+    private static String safeErrorMessage(Exception exception) {
+        if (exception == null) {
+            return "Unknown error";
+        }
+        String message = exception.getMessage();
+        if (message == null || message.isBlank()) {
+            return exception.getClass().getSimpleName();
+        }
+        return message;
     }
 
     private static String getDashboard() {

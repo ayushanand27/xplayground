@@ -86,7 +86,7 @@ function pushActivity(current, nextEntry) {
 function buildInitialStages() {
   return STAGE_NAMES.map((name, index) => ({
     name,
-    status: index < 3 ? 'success' : index === 3 ? 'running' : 'pending',
+    status: 'pending',
   }));
 }
 
