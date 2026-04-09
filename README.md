@@ -74,17 +74,118 @@ In `docker-compose.yml`:
 
 Kubernetes manifests available in `k8s/` for cluster deployment.
 
-## Running the Demo
+## Running the Demo (Quick)
 
-1. Open the project folder in your editor or terminal.
-2. Make sure Docker Desktop is running.
-3. If you want to customize the frontend backend URL, copy `frontend/.env.example` to `frontend/.env`.
-4. Start the stack with `docker compose up --build`.
-5. Wait until the backend, frontend, Prometheus, and Grafana containers finish starting.
-6. Open the React dashboard at `http://localhost:3000`.
-7. Submit a sample commit and watch the pipeline cards update.
-8. Open Prometheus at `http://localhost:9090` to see the scraped metric.
-9. Open Grafana at http://localhost:3001 (admin/admin) — the dashboard loads automatically.
+1. Open the project folder in terminal.
+2. Ensure Docker and Jenkins are running.
+3. (Optional) copy `frontend/.env.example` to `frontend/.env`.
+4. Start all services:
+
+```bash
+docker compose up -d --build
+```
+
+5. Verify containers:
+
+```bash
+docker compose ps
+```
+
+6. Open:
+   - Frontend: `http://localhost:3000`
+   - Backend health: `http://localhost:8800/health`
+   - Prometheus: `http://localhost:9090`
+   - Grafana: `http://localhost:3001`
+
+## Presentation Runbook (What to run and show)
+
+Use this flow while presenting the project live.
+
+### 1) Pre-demo checks (30–60 sec)
+
+Run:
+
+```bash
+docker compose ps
+```
+
+Show:
+- backend, frontend, prometheus, grafana are **Up**
+- backend/frontend/prometheus health states are healthy or starting
+
+### 2) Prove backend is alive (15 sec)
+
+Run:
+
+```bash
+curl http://localhost:8800/health
+```
+
+Show:
+- response is `OK`
+
+### 3) Open frontend dashboard (1–2 min)
+
+Open `http://localhost:3000` and show:
+- Backend health card/status
+- Pipeline stage visualization
+- Commit form
+- Live metrics panel
+
+### 4) Show metrics endpoint directly (30 sec)
+
+Run:
+
+```bash
+curl http://localhost:8800/metrics
+```
+
+Show:
+- Prometheus-format output
+- `http_requests_total{endpoint="..."}` counters
+
+### 5) Show observability stack (1–2 min)
+
+Open Prometheus: `http://localhost:9090`
+- Verify target scrape is healthy
+
+Open Grafana: `http://localhost:3001`
+- Show pre-provisioned dashboard
+- Explain endpoint counter visualization
+
+### 6) Optional Jenkins trigger demo (advanced)
+
+From frontend commit form (or API) trigger:
+
+```bash
+curl -X POST "http://localhost:8800/api/commit?filename=demo.txt&message=Live+demo"
+```
+
+Then show:
+- Jenkins job execution in `http://localhost:8080`
+- Build status/log endpoints (`/api/build-status/:number`, `/api/build-log/:number`)
+
+> Note: If `/api/commit` returns 500, verify Jenkins URL/user/token/job settings and API token permission.
+
+## Recommended talk track (5–8 minutes)
+
+1. **Problem**: manual release pipeline is slow and error-prone.
+2. **Solution**: automated CI/CD + observability with this stack.
+3. **Architecture**: backend + frontend + Prometheus + Grafana + Jenkins.
+4. **Live run**: health -> UI -> metrics -> monitoring -> (optional) Jenkins trigger.
+5. **Value**: fast feedback, measurable health, reproducible deployment path.
+
+## Common troubleshooting during demo
+
+- **Containers not starting**
+  - Run `docker compose logs --tail=100` and inspect failing service.
+- **Backend not reachable on 8800**
+  - Check `docker compose ps` port mapping.
+- **Frontend loads but API fails**
+  - Confirm backend is healthy and frontend URL config points to `http://localhost:8800`.
+- **Jenkins trigger fails (500)**
+  - Validate `JENKINS_URL`, `JENKINS_USER`, `JENKINS_TOKEN`, `JENKINS_JOB`.
+  - Ensure Jenkins job exists and token has build permission.
 
 ## What I Learned
 
