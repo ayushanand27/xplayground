@@ -5,6 +5,17 @@ services:
       dockerfile: Dockerfile
     ports:
       - '8800:8800'
+    environment:
+      GITHUB_TOKEN: ${GITHUB_TOKEN}
+      GITHUB_OWNER: ${GITHUB_OWNER:-ayushanand27}
+      GITHUB_REPO: ${GITHUB_REPO:-xplayground}
+      GITHUB_BRANCH: ${GITHUB_BRANCH:-main}
+      JENKINS_URL: ${JENKINS_URL:-http://host.docker.internal:8080}
+      JENKINS_USER: ${JENKINS_USER}
+      JENKINS_TOKEN: ${JENKINS_TOKEN}
+      JENKINS_JOB: ${JENKINS_JOB:-xpg}
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:8800/health >/dev/null"]
       interval: 30s

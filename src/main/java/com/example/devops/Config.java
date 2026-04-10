@@ -27,8 +27,8 @@ public class Config {
     public static final String GITHUB_BRANCH = env("GITHUB_BRANCH", "main");
 
     public static final String JENKINS_URL   = env("JENKINS_URL",   "http://localhost:8080");
-    public static final String JENKINS_USER  = env("JENKINS_USER",  "ayush_anand_2327");
-    public static final String JENKINS_TOKEN = env("JENKINS_TOKEN", "118d1fbc6b1e76be5f8b246e33691c2995");
+    public static final String JENKINS_USER  = env("JENKINS_USER",  "");
+    public static final String JENKINS_TOKEN = env("JENKINS_TOKEN", "");
     public static final String JENKINS_JOB   = env("JENKINS_JOB",   "xpg");
 
     public static boolean isGitHubConfigured() {

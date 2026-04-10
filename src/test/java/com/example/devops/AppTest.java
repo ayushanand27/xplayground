@@ -3,6 +3,7 @@ package com.example.devops;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
+import java.net.ServerSocket;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -23,9 +24,12 @@ public class AppTest {
 
     private static volatile boolean appStarted = false;
     private static volatile Thread serverThread;
+    private static volatile int testPort;
 
     @BeforeAll
     static void setup() throws Exception {
+        testPort = findFreePort();
+        System.setProperty("APP_PORT", String.valueOf(testPort));
         startAppOnce();
     }
 
@@ -42,6 +46,7 @@ public class AppTest {
             // Best-effort cleanup for test stability across environments.
         } finally {
             appStarted = false;
+            System.clearProperty("APP_PORT");
             if (serverThread != null) {
                 serverThread.interrupt();
                 serverThread = null;
@@ -61,7 +66,7 @@ public class AppTest {
         Instant deadline = Instant.now().plus(Duration.ofSeconds(15));
         while (Instant.now().isBefore(deadline)) {
             try {
-                if (healthCheckResponds()) {
+                if (healthCheckResponds(testPort)) {
                     appStarted = true;
                     return;
                 }
@@ -71,15 +76,22 @@ public class AppTest {
             LockSupport.parkNanos(Duration.ofMillis(250).toNanos());
         }
 
-        throw new IllegalStateException("Backend did not start on port 8800 in time.");
+        throw new IllegalStateException("Backend did not start on port " + testPort + " in time.");
     }
 
-    private static boolean healthCheckResponds() throws Exception {
-        HttpURLConnection connection = (HttpURLConnection) new URL("http://localhost:8800/health").openConnection();
+    private static boolean healthCheckResponds(int port) throws Exception {
+        HttpURLConnection connection = (HttpURLConnection) new URL("http://localhost:" + port + "/health").openConnection();
         connection.setRequestMethod("GET");
         connection.setConnectTimeout(1000);
         connection.setReadTimeout(1000);
         return connection.getResponseCode() == 200;
+    }
+
+    private static int findFreePort() throws Exception {
+        try (ServerSocket socket = new ServerSocket(0)) {
+            socket.setReuseAddress(true);
+            return socket.getLocalPort();
+        }
     }
 
     @Test
@@ -97,7 +109,7 @@ public class AppTest {
 
     @Test
     void metricsEndpointExposesHttpRequestsCounter() throws Exception {
-        URL url = new URL("http://localhost:8800/metrics");
+        URL url = new URL("http://localhost:" + testPort + "/metrics");
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         connection.setRequestMethod("GET");
         connection.setConnectTimeout(2000);

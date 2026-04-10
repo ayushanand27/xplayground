@@ -3,23 +3,29 @@ package com.example.devops;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+import com.google.gson.JsonObject;
+
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.prometheus.PrometheusConfig;
 import io.micrometer.prometheus.PrometheusMeterRegistry;
 import static spark.Spark.after;
+import static spark.Spark.exception;
 import static spark.Spark.get;
+import static spark.Spark.internalServerError;
 import static spark.Spark.options;
 import static spark.Spark.port;
 import static spark.Spark.post;
 
 public class App {
     public static final String MESSAGE = "DevOps Pipeline Working";
+    private static final int DEFAULT_PORT = 8800;
     private static final String REQUEST_COUNTER_NAME = "http_requests_total";
     private static final PrometheusMeterRegistry PROMETHEUS_REGISTRY = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
     private static final ConcurrentMap<String, Counter> ENDPOINT_COUNTERS = new ConcurrentHashMap<>();
 
     public static void main(String[] args) {
-        port(8800);
+        int appPort = resolvePort();
+        port(appPort);
 
         options("/*", (req, res) -> {
             String requestedHeaders = req.headers("Access-Control-Request-Headers");
@@ -39,6 +45,22 @@ public class App {
             res.header("Access-Control-Allow-Headers", "Content-Type,Authorization");
         });
 
+        exception(Exception.class, (error, req, res) -> {
+            if (req.pathInfo() != null && req.pathInfo().startsWith("/api/")) {
+                res.type("application/json");
+                res.status(500);
+                res.body(jsonError("Internal server error: " + safeErrorMessage(error)));
+            }
+        });
+
+        internalServerError((req, res) -> {
+            if (req.pathInfo() != null && req.pathInfo().startsWith("/api/")) {
+                res.type("application/json");
+                return jsonError("Internal server error");
+            }
+            return "Internal server error";
+        });
+
         get("/health", (req, res) -> {
             incrementEndpointCounter("/health");
             return "OK";
@@ -53,6 +75,10 @@ public class App {
         post("/api/commit", (req, res) -> {
             incrementEndpointCounter("/api/commit");
             res.type("application/json");
+            if (!Config.isJenkinsConfigured()) {
+                res.status(500);
+                return jsonError("Jenkins not configured — set JENKINS_USER and JENKINS_TOKEN.");
+            }
             String filename = req.queryParams("filename") != null ? req.queryParams("filename") : "code.txt";
             String message  = req.queryParams("message")  != null ? req.queryParams("message")  : "Commit from DevOps Pipeline";
             System.out.println("[INFO] Triggering Jenkins for: " + filename + " — " + message);
@@ -61,12 +87,16 @@ public class App {
                 String queueUrl = jenkins.triggerBuild();
                 int buildNumber = jenkins.resolveBuildNumber(queueUrl);
                 System.out.println("[INFO] Jenkins build #" + buildNumber + " started.");
-                return "{\"status\":\"success\",\"buildNumber\":" + buildNumber + ",\"message\":\"Jenkins build #" + buildNumber + " triggered!\"}";
+                JsonObject payload = new JsonObject();
+                payload.addProperty("status", "success");
+                payload.addProperty("buildNumber", buildNumber);
+                payload.addProperty("message", "Jenkins build #" + buildNumber + " triggered!");
+                return payload.toString();
             } catch (Exception e) {
                 String safeMessage = safeErrorMessage(e);
                 System.err.println("[ERROR] Jenkins trigger failed: " + safeMessage);
                 res.status(500);
-                return "{\"status\":\"error\",\"message\":\"" + safeMessage.replace("\"", "'") + "\"}";
+                return jsonError(safeMessage);
             }
         });
 
@@ -81,14 +111,14 @@ public class App {
             incrementEndpointCounter("/api/build-status/:number");
             res.type("application/json");
             if (!Config.isJenkinsConfigured()) {
-                return "{\"error\":\"Jenkins not configured — set JENKINS_USER and JENKINS_TOKEN.\"}";
+                return jsonError("Jenkins not configured — set JENKINS_USER and JENKINS_TOKEN.");
             }
             try {
                 JenkinsService jenkins = new JenkinsService();
                 return jenkins.getBuildStatus(Integer.parseInt(req.params("number")));
             } catch (Exception e) {
                 res.status(500);
-                return "{\"error\":\"" + safeErrorMessage(e).replace("\"", "'") + "\"}";
+                return jsonError(safeErrorMessage(e));
             }
         });
 
@@ -113,8 +143,30 @@ public class App {
             return buildPrometheusMetrics();
         });
 
-        System.out.println("Server started: http://localhost:8800");
+        System.out.println("Server started: http://localhost:" + appPort);
         System.out.println(MESSAGE);
+    }
+
+    private static int resolvePort() {
+        String systemPropertyPort = System.getProperty("APP_PORT");
+        if (systemPropertyPort != null && !systemPropertyPort.isBlank()) {
+            try {
+                return Integer.parseInt(systemPropertyPort.trim());
+            } catch (NumberFormatException ignored) {
+                // Fall back to env/default below.
+            }
+        }
+
+        String envPort = System.getenv("APP_PORT");
+        if (envPort != null && !envPort.isBlank()) {
+            try {
+                return Integer.parseInt(envPort.trim());
+            } catch (NumberFormatException ignored) {
+                // Fall back to default below.
+            }
+        }
+
+        return DEFAULT_PORT;
     }
 
     private static void incrementEndpointCounter(String endpoint) {
@@ -152,6 +204,13 @@ public class App {
             return exception.getClass().getSimpleName();
         }
         return message;
+    }
+
+    private static String jsonError(String message) {
+        JsonObject payload = new JsonObject();
+        payload.addProperty("status", "error");
+        payload.addProperty("message", message == null || message.isBlank() ? "Unknown error" : message);
+        return payload.toString();
     }
 
     private static String getDashboard() {
@@ -278,7 +337,17 @@ public class App {
                 "  formData.append('filename', filename);" +
                 "  formData.append('message', message);" +
                 "  fetch('/api/commit', { method: 'POST', body: formData })" +
-                "    .then(r => r.json())" +
+                "    .then(async r => {" +
+                "      const text = await r.text();" +
+                "      let data;" +
+                "      try { data = JSON.parse(text); } catch (parseError) {" +
+                "        throw new Error('Server returned non-JSON response. Check backend/Jenkins config.');" +
+                "      }" +
+                "      if(!r.ok || data.status === 'error') {" +
+                "        throw new Error(data.message || 'Commit request failed');" +
+                "      }" +
+                "      return data;" +
+                "    })" +
                 "    .then(data => {" +
                 "      addLog('SUCCESS', 'Commit recorded! Triggering Jenkins pipeline...');" +
                 "      document.getElementById('success-msg').classList.add('show');" +
