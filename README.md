@@ -11,7 +11,7 @@ flowchart LR
   Jenkins --> Build[Build & Test Java App]
   Jenkins --> App[Backend: Spark Java on :8800]
   Jenkins --> FE[Frontend: Vite React on :3000]
-  App --> Metrics[/metrics]
+  App --> Metrics["/metrics"]
   Metrics --> Prom[Prometheus :9090]
   Prom --> Graf[Grafana :3001]
   Graf --> Dash[API Request Dashboard]
