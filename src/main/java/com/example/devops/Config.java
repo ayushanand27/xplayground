@@ -41,6 +41,15 @@ public class Config {
 
     private static String env(String key, String defaultValue) {
         String value = System.getenv(key);
-        return (value != null && !value.isEmpty()) ? value : defaultValue;
+        if (value == null) {
+            return defaultValue;
+        }
+
+        String trimmed = value.trim();
+        if (!trimmed.isEmpty()) {
+            return trimmed;
+        }
+
+        return defaultValue;
     }
 }
