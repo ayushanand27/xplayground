@@ -55,6 +55,15 @@ public class GitHubService {
             return json.getAsJsonObject("commit").get("sha").getAsString();
         }
 
+        if (response.statusCode() == 401) {
+            throw new Exception("GitHub token is invalid or expired. Update GITHUB_TOKEN in .env and restart backend.");
+        }
+
+        if (response.statusCode() == 403) {
+            throw new Exception("GitHub token lacks write access. Grant Contents: Read and write for repo "
+                    + Config.GITHUB_OWNER + "/" + Config.GITHUB_REPO + ".");
+        }
+
         // Surface a clear error message
         String errorBody = response.body();
         try {
