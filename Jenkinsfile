@@ -185,46 +185,68 @@ pipeline {
                 expression { return fileExists('Dockerfile') }
             }
             steps {
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKERHUB_USER', passwordVariable: 'DOCKERHUB_PASS')]) {
-                    bat '''
-                        @echo off
-                        echo Logging in to DockerHub...
-                        echo %DOCKERHUB_PASS% | docker login --username "%DOCKERHUB_USER%" --password-stdin
-                        if errorlevel 1 (
-                            echo [ERROR] DockerHub login failed.
-                            exit /b 1
-                        )
+                catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKERHUB_USER', passwordVariable: 'DOCKERHUB_PASS')]) {
+                        bat '''
+                            @echo off
+                            set PUSH_MAX_RETRIES=3
 
-                        echo Tagging image as %DOCKERHUB_USER%/devops-pipeline-app:latest...
-                        docker tag devops-pipeline-app:latest %DOCKERHUB_USER%/devops-pipeline-app:latest
-                        if errorlevel 1 (
-                            echo [ERROR] Failed to tag latest image.
-                            exit /b 1
-                        )
+                            echo Logging in to DockerHub...
+                            echo %DOCKERHUB_PASS% | docker login --username "%DOCKERHUB_USER%" --password-stdin
+                            if errorlevel 1 (
+                                echo [ERROR] DockerHub login failed.
+                                exit /b 1
+                            )
 
-                        echo Tagging image as %DOCKERHUB_USER%/devops-pipeline-app:%BUILD_NUMBER%...
-                        docker tag devops-pipeline-app:latest %DOCKERHUB_USER%/devops-pipeline-app:%BUILD_NUMBER%
-                        if errorlevel 1 (
-                            echo [ERROR] Failed to tag build-number image.
-                            exit /b 1
-                        )
+                            echo Tagging image as %DOCKERHUB_USER%/devops-pipeline-app:latest...
+                            docker tag devops-pipeline-app:latest %DOCKERHUB_USER%/devops-pipeline-app:latest
+                            if errorlevel 1 (
+                                echo [ERROR] Failed to tag latest image.
+                                exit /b 1
+                            )
 
-                        echo Pushing %DOCKERHUB_USER%/devops-pipeline-app:latest...
-                        docker push %DOCKERHUB_USER%/devops-pipeline-app:latest
-                        if errorlevel 1 (
-                            echo [ERROR] Failed to push latest image.
-                            exit /b 1
-                        )
+                            echo Tagging image as %DOCKERHUB_USER%/devops-pipeline-app:%BUILD_NUMBER%...
+                            docker tag devops-pipeline-app:latest %DOCKERHUB_USER%/devops-pipeline-app:%BUILD_NUMBER%
+                            if errorlevel 1 (
+                                echo [ERROR] Failed to tag build-number image.
+                                exit /b 1
+                            )
 
-                        echo Pushing %DOCKERHUB_USER%/devops-pipeline-app:%BUILD_NUMBER%...
-                        docker push %DOCKERHUB_USER%/devops-pipeline-app:%BUILD_NUMBER%
-                        if errorlevel 1 (
-                            echo [ERROR] Failed to push build-number image.
-                            exit /b 1
-                        )
+                            set PUSH_RETRY=1
+                            :PUSH_LATEST
+                            echo Pushing %DOCKERHUB_USER%/devops-pipeline-app:latest (attempt %PUSH_RETRY%/%PUSH_MAX_RETRIES%)...
+                            docker push %DOCKERHUB_USER%/devops-pipeline-app:latest
+                            if errorlevel 1 (
+                                if %PUSH_RETRY% GEQ %PUSH_MAX_RETRIES% (
+                                    echo [ERROR] Failed to push latest image after %PUSH_MAX_RETRIES% attempts.
+                                    exit /b 1
+                                )
+                                set /a PUSH_RETRY+=1
+                                echo [WARNING] Push latest failed. Re-authenticating and retrying...
+                                echo %DOCKERHUB_PASS% | docker login --username "%DOCKERHUB_USER%" --password-stdin
+                                ping -n 6 127.0.0.1 > nul
+                                goto PUSH_LATEST
+                            )
 
-                        echo [SUCCESS] DockerHub push completed!
-                    '''
+                            set PUSH_RETRY=1
+                            :PUSH_BUILD_NUMBER
+                            echo Pushing %DOCKERHUB_USER%/devops-pipeline-app:%BUILD_NUMBER% (attempt %PUSH_RETRY%/%PUSH_MAX_RETRIES%)...
+                            docker push %DOCKERHUB_USER%/devops-pipeline-app:%BUILD_NUMBER%
+                            if errorlevel 1 (
+                                if %PUSH_RETRY% GEQ %PUSH_MAX_RETRIES% (
+                                    echo [ERROR] Failed to push build-number image after %PUSH_MAX_RETRIES% attempts.
+                                    exit /b 1
+                                )
+                                set /a PUSH_RETRY+=1
+                                echo [WARNING] Push build-number failed. Re-authenticating and retrying...
+                                echo %DOCKERHUB_PASS% | docker login --username "%DOCKERHUB_USER%" --password-stdin
+                                ping -n 6 127.0.0.1 > nul
+                                goto PUSH_BUILD_NUMBER
+                            )
+
+                            echo [SUCCESS] DockerHub push completed!
+                        '''
+                    }
                 }
             }
         }
