@@ -23,6 +23,12 @@ Thumbs.db
 *.pid
 *.seed
 
+# Environment / secrets
+.env
+.env.*
+!.env.example
+!frontend/.env.example
+
 # Others
 *.swp
 ~$*.pptm
