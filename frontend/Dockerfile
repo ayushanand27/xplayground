@@ -2,7 +2,7 @@ FROM node:20-alpine AS build
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci --legacy-peer-deps
+RUN npm ci --include=dev --legacy-peer-deps
 
 COPY . .
 RUN npx vite build
