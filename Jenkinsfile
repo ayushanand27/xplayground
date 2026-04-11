@@ -112,26 +112,34 @@ pipeline {
                 expression { return fileExists('Dockerfile') }
             }
             steps {
-                bat '''
-                    @echo off
-                    echo Checking Docker availability...
-                    docker --version
-                    if errorlevel 1 (
-                        echo [WARNING] Docker is not available or daemon is not running.
-                        echo [INFO] Start Docker Desktop and re-run the pipeline.
-                        exit /b 0
-                    )
+                catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
+                    bat '''
+                        @echo off
+                        echo Checking Docker availability...
+                        docker --version
+                        if errorlevel 1 (
+                            echo [ERROR] Docker CLI is not available on this Jenkins agent.
+                            exit /b 1
+                        )
 
-                    echo Building Docker image: devops-pipeline-app:latest
-                    docker build -t devops-pipeline-app:latest .
-                    if errorlevel 1 (
-                        echo [ERROR] Docker build failed.
-                        exit /b 1
-                    )
+                        docker info >nul 2>&1
+                        if errorlevel 1 (
+                            echo [ERROR] Docker daemon is not running or not reachable.
+                            echo [INFO] Start Docker Desktop and ensure Linux engine is running.
+                            exit /b 1
+                        )
 
-                    echo [SUCCESS] Docker image built successfully!
-                    docker images devops-pipeline-app:latest
-                '''
+                        echo Building Docker image: devops-pipeline-app:latest
+                        docker build -t devops-pipeline-app:latest .
+                        if errorlevel 1 (
+                            echo [ERROR] Docker build failed.
+                            exit /b 1
+                        )
+
+                        echo [SUCCESS] Docker image built successfully!
+                        docker images devops-pipeline-app:latest
+                    '''
+                }
             }
         }
 
@@ -166,17 +174,26 @@ pipeline {
                 expression { return fileExists('docker-compose.yml') }
             }
             steps {
-                bat '''
-                    @echo off
-                    echo Running docker-compose build...
-                    docker-compose build
-                    if errorlevel 1 (
-                        echo [ERROR] docker-compose build failed.
-                        exit /b 1
-                    )
+                catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
+                    bat '''
+                        @echo off
+                        docker info >nul 2>&1
+                        if errorlevel 1 (
+                            echo [ERROR] Docker daemon is not running or not reachable.
+                            echo [INFO] Skipping docker-compose build for this run.
+                            exit /b 1
+                        )
 
-                    echo [SUCCESS] docker-compose build completed!
-                '''
+                        echo Running docker-compose build...
+                        docker-compose build
+                        if errorlevel 1 (
+                            echo [ERROR] docker-compose build failed.
+                            exit /b 1
+                        )
+
+                        echo [SUCCESS] docker-compose build completed!
+                    '''
+                }
             }
         }
 
@@ -190,6 +207,13 @@ pipeline {
                         bat '''
                             @echo off
                             set PUSH_MAX_RETRIES=3
+
+                            docker info >nul 2>&1
+                            if errorlevel 1 (
+                                echo [ERROR] Docker daemon is not running or not reachable.
+                                echo [INFO] Skipping DockerHub push for this run.
+                                exit /b 1
+                            )
 
                             echo Logging in to DockerHub...
                             echo %DOCKERHUB_PASS% | docker login --username "%DOCKERHUB_USER%" --password-stdin
