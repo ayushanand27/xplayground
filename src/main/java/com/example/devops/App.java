@@ -1,5 +1,7 @@
 package com.example.devops;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -75,26 +77,43 @@ public class App {
         post("/api/commit", (req, res) -> {
             incrementEndpointCounter("/api/commit");
             res.type("application/json");
-            if (!Config.isJenkinsConfigured()) {
-                res.status(500);
-                return jsonError("Jenkins not configured — set JENKINS_USER and JENKINS_TOKEN.");
+            String code = req.queryParams("code");
+            if (code == null || code.isBlank()) {
+                res.status(400);
+                return jsonError("Code payload is required.");
             }
-            String filename = req.queryParams("filename") != null ? req.queryParams("filename") : "code.txt";
-            String message  = req.queryParams("message")  != null ? req.queryParams("message")  : "Commit from DevOps Pipeline";
-            System.out.println("[INFO] Triggering Jenkins for: " + filename + " — " + message);
+
+            String missingConfig = missingCommitConfiguration();
+            if (missingConfig != null) {
+                res.status(500);
+                return jsonError("Missing configuration: " + missingConfig
+                        + ". Update .env (or environment variables) and restart backend.");
+            }
+
+            String filename = valueOrDefault(req.queryParams("filename"), "code.txt");
+            String message = valueOrDefault(req.queryParams("message"), "Commit from DevOps Pipeline");
+
+            System.out.println("[INFO] Committing payload to GitHub: " + filename + " — " + message);
             try {
+                GitHubService gitHub = new GitHubService();
+                String commitSha = gitHub.commitFile(filename, code, message);
+                System.out.println("[INFO] GitHub commit created: " + shortSha(commitSha));
+
                 JenkinsService jenkins = new JenkinsService();
                 String queueUrl = jenkins.triggerBuild();
                 int buildNumber = jenkins.resolveBuildNumber(queueUrl);
                 System.out.println("[INFO] Jenkins build #" + buildNumber + " started.");
+
                 JsonObject payload = new JsonObject();
                 payload.addProperty("status", "success");
                 payload.addProperty("buildNumber", buildNumber);
-                payload.addProperty("message", "Jenkins build #" + buildNumber + " triggered!");
+                payload.addProperty("commitSha", commitSha);
+                payload.addProperty("message", "Committed to GitHub (" + shortSha(commitSha)
+                        + ") and triggered Jenkins build #" + buildNumber + ".");
                 return payload.toString();
             } catch (Exception e) {
                 String safeMessage = safeErrorMessage(e);
-                System.err.println("[ERROR] Jenkins trigger failed: " + safeMessage);
+                System.err.println("[ERROR] Commit workflow failed: " + safeMessage);
                 res.status(500);
                 return jsonError(safeMessage);
             }
@@ -193,6 +212,38 @@ public class App {
                         .append('\n'));
 
         return output.toString();
+    }
+
+    private static String missingCommitConfiguration() {
+        List<String> missing = new ArrayList<>();
+
+        if (!Config.isGitHubConfigured()) {
+            missing.add("GITHUB_TOKEN");
+        }
+
+        if (Config.JENKINS_USER.isBlank()) {
+            missing.add("JENKINS_USER");
+        }
+
+        if (Config.JENKINS_TOKEN.isBlank()) {
+            missing.add("JENKINS_TOKEN");
+        }
+
+        return missing.isEmpty() ? null : String.join(", ", missing);
+    }
+
+    private static String valueOrDefault(String value, String defaultValue) {
+        if (value == null || value.isBlank()) {
+            return defaultValue;
+        }
+        return value;
+    }
+
+    private static String shortSha(String commitSha) {
+        if (commitSha == null || commitSha.isBlank()) {
+            return "unknown";
+        }
+        return commitSha.length() > 7 ? commitSha.substring(0, 7) : commitSha;
     }
 
     private static String safeErrorMessage(Exception exception) {

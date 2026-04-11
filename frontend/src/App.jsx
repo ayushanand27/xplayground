@@ -100,6 +100,8 @@ function App() {
     status: 'idle',
     message: 'Submit code to trigger the backend endpoint.',
   });
+  const [filename, setFilename] = useState('frontend-snippet.js');
+  const [commitMessage, setCommitMessage] = useState('Commit from Vite frontend dashboard');
   const [code, setCode] = useState(DEFAULT_SNIPPET);
   const [stages, setStages] = useState(buildInitialStages());
   const [liveMetrics, setLiveMetrics] = useState({
@@ -257,6 +259,18 @@ function App() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+
+    if (!code.trim()) {
+      setCommitState({
+        status: 'error',
+        message: 'Code cannot be empty.',
+      });
+      return;
+    }
+
+    const normalizedFilename = filename.trim() || 'frontend-snippet.js';
+    const normalizedMessage = commitMessage.trim() || 'Commit from Vite frontend dashboard';
+
     setCommitState({
       status: 'submitting',
       message: 'Posting the commit payload to the backend...',
@@ -265,8 +279,8 @@ function App() {
     try {
       const body = new URLSearchParams({
         code,
-        filename: 'frontend-snippet.js',
-        message: 'Commit from Vite frontend dashboard',
+        filename: normalizedFilename,
+        message: normalizedMessage,
       });
 
       const response = await fetch(`${BACKEND_URL}/api/commit`, {
@@ -487,6 +501,26 @@ function App() {
 
             <form onSubmit={handleSubmit} className="mt-6 space-y-4">
               <label className="block">
+                <span className="mb-2 block text-sm font-medium text-slate-200">Filename</span>
+                <input
+                  value={filename}
+                  onChange={(event) => setFilename(event.target.value)}
+                  className="w-full rounded-2xl border border-slate-700 bg-slate-950/85 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/30"
+                  placeholder="frontend-snippet.js"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-sm font-medium text-slate-200">Commit message</span>
+                <input
+                  value={commitMessage}
+                  onChange={(event) => setCommitMessage(event.target.value)}
+                  className="w-full rounded-2xl border border-slate-700 bg-slate-950/85 px-4 py-3 text-sm text-slate-100 outline-none transition focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/30"
+                  placeholder="Commit from dashboard"
+                />
+              </label>
+
+              <label className="block">
                 <span className="mb-2 block text-sm font-medium text-slate-200">Code</span>
                 <textarea
                   value={code}
@@ -504,7 +538,7 @@ function App() {
                 </div>
                 <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-3 text-xs text-slate-300">
                   <span className="text-slate-400">Commit target</span>
-                  <p className="mt-1 text-sm font-semibold text-white">/api/commit</p>
+                  <p className="mt-1 text-sm font-semibold text-white">code/{filename.trim() || 'frontend-snippet.js'}</p>
                 </div>
               </div>
 
