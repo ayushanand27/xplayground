@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    restart: unless-stopped
     ports:
       - '8800:8800'
     environment:
@@ -26,6 +27,7 @@ services:
 
   prometheus:
     image: prom/prometheus:v2.54.1
+    restart: unless-stopped
     depends_on:
       - backend
     ports:
@@ -44,6 +46,7 @@ services:
 
   grafana:
     image: grafana/grafana-oss:11.2.2
+    restart: unless-stopped
     depends_on:
       - prometheus
     ports:
@@ -63,6 +66,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    restart: unless-stopped
     depends_on:
       - backend
     links:
