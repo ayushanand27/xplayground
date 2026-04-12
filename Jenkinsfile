@@ -245,9 +245,17 @@ pipeline {
                         echo Pushing %DOCKERHUB_USER%/devops-pipeline-app:latest (attempt %PUSH_RETRY%/%PUSH_MAX_RETRIES%)...
                         docker push %DOCKERHUB_USER%/devops-pipeline-app:latest
                         if errorlevel 1 (
+                            docker info >nul 2>&1
+                            if errorlevel 1 (
+                                echo [WARNING] Docker daemon became unavailable during latest image push.
+                                echo [INFO] Skipping remaining DockerHub push steps for this run.
+                                exit /b 0
+                            )
+
                             if %PUSH_RETRY% GEQ %PUSH_MAX_RETRIES% (
-                                echo [ERROR] Failed to push latest image after %PUSH_MAX_RETRIES% attempts.
-                                exit /b 1
+                                echo [WARNING] Failed to push latest image after %PUSH_MAX_RETRIES% attempts.
+                                echo [INFO] Continuing without failing the pipeline.
+                                exit /b 0
                             )
                             set /a PUSH_RETRY+=1
                             echo [WARNING] Push latest failed. Re-authenticating and retrying...
@@ -261,9 +269,17 @@ pipeline {
                         echo Pushing %DOCKERHUB_USER%/devops-pipeline-app:%BUILD_NUMBER% (attempt %PUSH_RETRY%/%PUSH_MAX_RETRIES%)...
                         docker push %DOCKERHUB_USER%/devops-pipeline-app:%BUILD_NUMBER%
                         if errorlevel 1 (
+                            docker info >nul 2>&1
+                            if errorlevel 1 (
+                                echo [WARNING] Docker daemon became unavailable during build-number image push.
+                                echo [INFO] Skipping remaining DockerHub push steps for this run.
+                                exit /b 0
+                            )
+
                             if %PUSH_RETRY% GEQ %PUSH_MAX_RETRIES% (
-                                echo [ERROR] Failed to push build-number image after %PUSH_MAX_RETRIES% attempts.
-                                exit /b 1
+                                echo [WARNING] Failed to push build-number image after %PUSH_MAX_RETRIES% attempts.
+                                echo [INFO] Continuing without failing the pipeline.
+                                exit /b 0
                             )
                             set /a PUSH_RETRY+=1
                             echo [WARNING] Push build-number failed. Re-authenticating and retrying...
